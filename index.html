@@ -140,6 +140,11 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 
     <div class="kpi-grid" id="kpiGrid"></div>
 
+    <div class="card" id="nextPlanCard" style="border:1.5px dashed #B7CDEA;background:#F7FAFF">
+      <div class="card-title" id="nextPlanTitle">🗓️ Kế hoạch tháng tiếp theo</div>
+      <div class="kpi-grid" id="nextPlanGrid"></div>
+    </div>
+
     <div class="grid2">
       <div class="card">
         <div class="card-title">📈 Xu hướng số lần & số mẫu phân tích (thực tế)</div>
@@ -374,6 +379,31 @@ function getFilteredRows() {
   return STATE.rows.filter(r => months.includes(r.thang));
 }
 
+function getNextPeriodInfo() {
+  if (STATE.mode === 'thang') {
+    const nextMonth = STATE.period + 1;
+    return { label: 'Tháng ' + nextMonth, rows: STATE.rows.filter(r => r.thang === nextMonth) };
+  }
+  const nextQuy = STATE.period + 1;
+  const months = [1,2,3].map(x => (nextQuy-1)*3 + x);
+  return { label: 'Quý ' + nextQuy, rows: STATE.rows.filter(r => months.includes(r.thang)) };
+}
+
+function renderNextPlan() {
+  const { label, rows } = getNextPeriodInfo();
+  document.getElementById('nextPlanTitle').textContent = `🗓️ Kế hoạch ${label}`;
+  if (!rows.length) {
+    document.getElementById('nextPlanGrid').innerHTML =
+      `<div class="empty-state" style="grid-column:1/-1">Chưa có kế hoạch nhập cho ${label}</div>`;
+    return;
+  }
+  const tot = rows.reduce((a,r) => { a.khLan+=r.khLan; a.khMau+=r.khMau; a.khCP+=r.khCP; return a; }, {khLan:0,khMau:0,khCP:0});
+  document.getElementById('nextPlanGrid').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">KH Số lần phân tích</div><div class="kpi-val">${fmtNum(tot.khLan)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">KH Số mẫu phân tích</div><div class="kpi-val">${fmtNum(tot.khMau)}</div></div>
+    <div class="kpi-card money"><div class="kpi-label">KH Chi phí</div><div class="kpi-val">${fmtMoney(tot.khCP)}</div></div>`;
+}
+
 function renderOverview() {
   const rows = getFilteredRows();
   const tot = rows.reduce((a,r) => {
@@ -397,6 +427,8 @@ function renderOverview() {
       <div class="kpi-row"><span class="kpi-val">${fmtMoney(tot.ttCP)}</span></div>
       <div style="font-size:11.5px;color:#94A3B8;margin-top:4px">Ngân sách KH: ${fmtMoney(tot.khCP)}</div>
     </div>`;
+
+  renderNextPlan();
 
   // Bảng theo nhóm
   const byNhom = {};
