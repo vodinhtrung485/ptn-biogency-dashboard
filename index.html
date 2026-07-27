@@ -209,6 +209,45 @@ const URLS = {
 };
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
 
+/* ══════════ BẢNG KẾ HOẠCH (đồng bộ với KH_LAN trong MÃ.GS) ══════════ */
+// [T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12] — cập nhật khi có kế hoạch năm mới
+const KH_LAN_2026 = {
+  'Nhóm 1':       [0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0],
+  'Nhóm 2':       [8, 8, 8, 8, 8, 8, 8, 8, 8,  8,  8,  8],
+  'Nhóm 3':       [3, 3, 5, 5, 7, 7, 7, 7, 7,  6,  6,  6],
+  'Nhóm 4':       [3, 3, 3, 0, 0, 4, 4, 4, 4,  4,  4,  4],
+  'Nhóm 5':       [2, 2, 2, 3, 2, 2, 3, 2, 2,  3,  2,  2],
+  'Nhóm 6':       [2, 1, 3, 4, 3, 4, 3, 4, 4,  4,  4,  4],
+  'Nhóm 7':       [4, 4, 4, 4, 4, 4, 4, 4, 4,  4,  4,  4],
+  'Nhóm 8':       [2, 1, 3, 3, 4, 4, 5, 4, 4,  6,  4,  4],
+  'Nhóm 9':       [5, 5, 6, 5, 5, 5, 5, 5, 5,  5,  5,  5],
+  'Mô hình AO':   [4, 4, 4, 4, 4, 4, 4, 4, 4,  4,  4,  4],
+  'Mẫu test lại': [0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0],
+};
+const KH_MAU_PER_LAN = {
+  'Nhóm 1': 0, 'Nhóm 2': 3, 'Nhóm 3': 3, 'Nhóm 4': 4, 'Nhóm 5': 4,
+  'Nhóm 6': 2, 'Nhóm 7': 3, 'Nhóm 8': 2, 'Nhóm 9': 2,
+  'Mô hình AO': 3, 'Mẫu test lại': 2,
+};
+const DON_GIA_NGAN_SACH = 444333;
+
+function tinhKeHoachThang(nhom, thang) {
+  const arr = KH_LAN_2026[nhom] || [];
+  const khLan = arr[thang - 1] || 0;
+  const mauPerLan = KH_MAU_PER_LAN[nhom] || 0;
+  const khMau = khLan * mauPerLan;
+  const khCP = Math.round(khMau * DON_GIA_NGAN_SACH);
+  return { khLan, khMau, khCP };
+}
+
+function tinhKeHoachThangTong(thang) {
+  return Object.keys(KH_LAN_2026).reduce((a, nhom) => {
+    const kh = tinhKeHoachThang(nhom, thang);
+    a.khLan += kh.khLan; a.khMau += kh.khMau; a.khCP += kh.khCP;
+    return a;
+  }, { khLan: 0, khMau: 0, khCP: 0 });
+}
+
 let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], mode: 'thang', period: null };
 let trendChartObj = null, cpChartObj = null;
 
@@ -382,22 +421,27 @@ function getFilteredRows() {
 function getNextPeriodInfo() {
   if (STATE.mode === 'thang') {
     const nextMonth = STATE.period + 1;
-    return { label: 'Tháng ' + nextMonth, rows: STATE.rows.filter(r => r.thang === nextMonth) };
+    if (nextMonth > 12) return { label: 'Tháng ' + nextMonth, months: [] };
+    return { label: 'Tháng ' + nextMonth, months: [nextMonth] };
   }
   const nextQuy = STATE.period + 1;
-  const months = [1,2,3].map(x => (nextQuy-1)*3 + x);
-  return { label: 'Quý ' + nextQuy, rows: STATE.rows.filter(r => months.includes(r.thang)) };
+  const months = [1,2,3].map(x => (nextQuy-1)*3 + x).filter(m => m <= 12);
+  return { label: 'Quý ' + nextQuy, months };
 }
 
 function renderNextPlan() {
-  const { label, rows } = getNextPeriodInfo();
+  const { label, months } = getNextPeriodInfo();
   document.getElementById('nextPlanTitle').textContent = `🗓️ Kế hoạch ${label}`;
-  if (!rows.length) {
+  if (!months.length) {
     document.getElementById('nextPlanGrid').innerHTML =
-      `<div class="empty-state" style="grid-column:1/-1">Chưa có kế hoạch nhập cho ${label}</div>`;
+      `<div class="empty-state" style="grid-column:1/-1">Đã hết năm, chưa có kế hoạch cho ${label}</div>`;
     return;
   }
-  const tot = rows.reduce((a,r) => { a.khLan+=r.khLan; a.khMau+=r.khMau; a.khCP+=r.khCP; return a; }, {khLan:0,khMau:0,khCP:0});
+  const tot = months.reduce((a, m) => {
+    const kh = tinhKeHoachThangTong(m);
+    a.khLan += kh.khLan; a.khMau += kh.khMau; a.khCP += kh.khCP;
+    return a;
+  }, { khLan: 0, khMau: 0, khCP: 0 });
   document.getElementById('nextPlanGrid').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">KH Số lần phân tích</div><div class="kpi-val">${fmtNum(tot.khLan)}</div></div>
     <div class="kpi-card"><div class="kpi-label">KH Số mẫu phân tích</div><div class="kpi-val">${fmtNum(tot.khMau)}</div></div>
