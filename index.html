@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard PTN · Biogency</title>
+<link rel="preconnect" href="https://docs.google.com">
+<link rel="preconnect" href="https://doc-08-7o-sheets.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://docs.google.com">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#EFF3F8;color:#1A2B4A;min-height:100vh}
+
+/* HEADER */
+.app-header{
+  background:linear-gradient(135deg,#0D1B5E 0%,#1B2E7A 45%,#0D4A7A 100%);
+  padding:18px 26px;color:#fff;display:flex;align-items:center;gap:16px;
+  box-shadow:0 2px 16px rgba(0,0,0,.2);position:sticky;top:0;z-index:50;flex-wrap:wrap
+}
+.app-header h1{font-size:19px;font-weight:800;letter-spacing:.3px}
+.app-header p{font-size:11.5px;opacity:.7;margin-top:2px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.updated-tag{font-size:11px;background:rgba(255,255,255,.12);padding:6px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.2)}
+.btn-refresh{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;
+  padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s}
+.btn-refresh:hover{background:rgba(255,255,255,.28)}
+
+/* TABS */
+.tab-nav{display:flex;gap:4px;background:#fff;padding:0 20px;box-shadow:0 2px 8px rgba(0,0,0,.05);
+  position:sticky;top:74px;z-index:40;overflow-x:auto}
+.tab-btn{padding:14px 18px;font-size:13px;font-weight:700;color:#6B7A99;background:none;border:none;
+  cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:.15s}
+.tab-btn:hover{color:#1B2E7A}
+.tab-btn.active{color:#1B2E7A;border-bottom-color:#2E9FD8}
+
+.container{max-width:1280px;margin:0 auto;padding:22px 20px 60px}
+.tab-page{display:none}
+.tab-page.active{display:block}
+
+/* CARDS */
+.card{background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:18px 20px;margin-bottom:18px}
+.card-title{font-size:14px;font-weight:800;color:#1B2E7A;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:12px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.filter-bar label{font-size:11px;font-weight:700;color:#6B7A99;text-transform:uppercase;letter-spacing:.5px;margin-right:4px}
+.seg{display:flex;background:#EFF3F8;border-radius:10px;padding:3px;gap:2px}
+.seg button{border:none;background:none;padding:8px 16px;font-size:12.5px;font-weight:700;color:#6B7A99;border-radius:8px;cursor:pointer}
+.seg button.active{background:#1B2E7A;color:#fff}
+select.period-sel{padding:9px 14px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px;color:#1A2B4A;background:#fff;cursor:pointer;font-weight:600}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+@media(max-width:820px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi-card{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.06);border-left:4px solid #2E9FD8}
+.kpi-card.money{border-left-color:#2E7D32}
+.kpi-label{font-size:10.5px;font-weight:700;color:#6B7A99;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.kpi-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.kpi-val{font-size:22px;font-weight:800;color:#1B2E7A}
+.kpi-sep{font-size:13px;color:#B0BDD0}
+.kpi-kh{font-size:14px;font-weight:700;color:#94A3B8}
+.kpi-pct{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:auto}
+.pct-good{background:#E8F5E9;color:#2E7D32}
+.pct-warn{background:#FFF3E0;color:#E65100}
+.pct-bad{background:#FEF2F2;color:#B91C1C}
+
+/* CHART */
+.chart-wrap{position:relative;height:300px}
+
+/* TABLE */
+table.data-table{width:100%;border-collapse:collapse;font-size:12.5px}
+table.data-table th{background:#F5F8FC;color:#5A7498;font-weight:700;text-align:left;padding:10px 12px;
+  text-transform:uppercase;font-size:10.5px;letter-spacing:.4px;border-bottom:2px solid #E5EAF2}
+table.data-table td{padding:10px 12px;border-bottom:1px solid #EEF2F7}
+table.data-table tr:hover td{background:#F9FBFD}
+table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:#E8F5E9;color:#2E7D32}
+.badge-yellow{background:#FFF8E1;color:#F57F17}
+.badge-red{background:#FEF2F2;color:#B91C1C}
+.badge-gray{background:#F1F5F9;color:#64748B}
+.badge-blue{background:#E3F2FD;color:#1565C0}
+
+/* PROGRESS */
+.pp-item{border:1.5px solid #EDF1F7;border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.pp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px}
+.pp-name{font-size:14px;font-weight:800;color:#1B2E7A}
+.pp-method{font-size:11.5px;color:#94A3B8;margin-bottom:10px}
+.pp-bar-bg{background:#EEF2F7;border-radius:20px;height:10px;overflow:hidden;margin-bottom:8px}
+.pp-bar-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,#2E9FD8,#3ADEC0)}
+.pp-note{font-size:12px;color:#5A6B85;line-height:1.5}
+
+.empty-state{text-align:center;padding:40px 20px;color:#94A3B8;font-size:13px}
+.spinner-wrap{text-align:center;padding:60px;color:#94A3B8}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid #DDE6F0;border-top-color:#2E9FD8;
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+
+.stale-note{font-size:11px;color:#F57F17;background:#FFF8E1;padding:4px 10px;border-radius:8px;margin-left:8px}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <h1>🔬 Dashboard PTN · Biogency</h1>
+    <p>Công ty TNHH Đất Hợp — Tổng hợp hoạt động phòng thí nghiệm</p>
+  </div>
+  <div class="header-right">
+    <span class="updated-tag" id="updatedTag">Đang tải...</span>
+    <button class="btn-refresh" onclick="loadAll(true)">↻ Làm mới</button>
+  </div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="tab-tongquan" onclick="switchTab('tab-tongquan')">📊 Tổng quan</button>
+  <button class="tab-btn" data-tab="tab-thietbi" onclick="switchTab('tab-thietbi')">🧰 Thiết bị</button>
+  <button class="tab-btn" data-tab="tab-hoachat" onclick="switchTab('tab-hoachat')">🧪 Hóa chất</button>
+  <button class="tab-btn" data-tab="tab-mohinh" onclick="switchTab('tab-mohinh')">⚙️ Mô hình thử nghiệm</button>
+  <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
+</nav>
+
+<div class="container">
+
+  <!-- ══ TAB: TỔNG QUAN ══ -->
+  <div class="tab-page active" id="tab-tongquan">
+    <div class="filter-bar">
+      <label>Xem theo</label>
+      <div class="seg" id="modeSeg">
+        <button class="active" data-mode="thang">Tháng</button>
+        <button data-mode="quy">Quý</button>
+      </div>
+      <select class="period-sel" id="periodSel"></select>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">📈 Xu hướng số lần & số mẫu phân tích (thực tế)</div>
+        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">💰 Chi phí thực tế vs kế hoạch theo tháng</div>
+        <div class="chart-wrap"><canvas id="cpChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Chi tiết theo nhóm ngành</div>
+      <div id="nhomTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: THIẾT BỊ ══ -->
+  <div class="tab-page" id="tab-thietbi">
+    <div class="kpi-grid" id="tbKpi"></div>
+    <div class="card">
+      <div class="card-title">🧰 Danh sách thiết bị</div>
+      <div id="tbTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: HÓA CHẤT ══ -->
+  <div class="tab-page" id="tab-hoachat">
+    <div class="kpi-grid" id="hcKpi"></div>
+    <div class="card">
+      <div class="card-title">🧪 Tồn kho hóa chất</div>
+      <div id="hcTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: MÔ HÌNH THỬ NGHIỆM ══ -->
+  <div class="tab-page" id="tab-mohinh">
+    <div class="card">
+      <div class="card-title">⚙️ Mô hình thử nghiệm đang triển khai</div>
+      <div id="mhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: THỬ NGHIỆM PP MỚI ══ -->
+  <div class="tab-page" id="tab-thunghiem">
+    <div class="card">
+      <div class="card-title">🧬 Tiến độ thử nghiệm phương pháp mới</div>
+      <div id="tnWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════ CẤU HÌNH LINK CSV/TSV ══════════ */
+const URLS = {
+  data:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=491062213&single=true&output=tsv',
+  thietbi:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=426958505&single=true&output=tsv',
+  hoachat:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=480606526&single=true&output=tsv',
+  mohinh:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=264119043&single=true&output=tsv',
+  thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv'
+};
+const CACHE_KEY = 'ptn_dashboard_cache_v1';
+
+let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], mode: 'thang', period: null };
+let trendChartObj = null, cpChartObj = null;
+
+/* ══════════ HELPERS ══════════ */
+function parseTSV(text) {
+  const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim() !== '');
+  if (!lines.length) return [];
+  const headers = lines[0].split('\t').map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const cells = line.split('\t');
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (cells[i] !== undefined ? cells[i].trim() : ''));
+    return obj;
+  });
+}
+function money(s) {
+  const n = parseInt(String(s||'').replace(/[^\d-]/g,''), 10);
+  return isNaN(n) ? 0 : n;
+}
+function num(s) {
+  const n = parseFloat(String(s||'').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function fmtMoney(n) { return n.toLocaleString('vi-VN') + ' đ'; }
+function fmtNum(n) { return n.toLocaleString('vi-VN'); }
+function pctBadge(tt, kh) {
+  if (!kh) return '';
+  const p = Math.round((tt/kh)*100);
+  const cls = p >= 90 ? 'pct-good' : (p >= 60 ? 'pct-warn' : 'pct-bad');
+  return `<span class="kpi-pct ${cls}">${p}% KH</span>`;
+}
+
+/* ══════════ TAB SWITCH ══════════ */
+function switchTab(id) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelector(`.tab-btn[data-tab="${id}"]`).classList.add('active');
+}
+
+/* ══════════ LOAD DATA ══════════ */
+async function fetchTSV(url) {
+  const res = await fetch(url + '&_=' + Date.now());
+  const text = await res.text();
+  return parseTSV(text);
+}
+
+function processRawData(data, thietbi, hoachat, mohinh, thunghiem) {
+  const seen = {};
+  const rows = [];
+  data.forEach(r => {
+    let nhom = (r['Nhóm']||'').trim();
+    const thang = parseInt(r['Tháng']);
+    if (!nhom || nhom.startsWith('#') || isNaN(thang)) return;
+    if (nhom === 'Mô hình' || nhom === 'Mô hình thử nghiệm') nhom = 'Mô hình AO';
+    const key = thang + '|' + nhom;
+    if (seen[key]) return;
+    seen[key] = true;
+    rows.push({
+      thang, nhom,
+      khLan: num(r['KH_Lan']), ttLan: num(r['TT_Lan']),
+      khMau: num(r['KH_Mau']), ttMau: num(r['TT_Mau']),
+      khCP: money(r['KH_CP']), ttCP: money(r['TT_CP'])
+    });
+  });
+  return {
+    rows,
+    thietbi: thietbi.filter(r => r['ID']),
+    hoachat: hoachat.filter(r => r['ID']),
+    mohinh: mohinh.filter(r => r['Tên mô hình']),
+    thunghiem: thunghiem.filter(r => r['Tên chỉ tiêu'] || r['Chỉ tiêu'])
+  };
+}
+
+function applyState(processed, timestamp, stale) {
+  STATE.rows = processed.rows;
+  STATE.thietbi = processed.thietbi;
+  STATE.hoachat = processed.hoachat;
+  STATE.mohinh = processed.mohinh;
+  STATE.thunghiem = processed.thunghiem;
+
+  buildPeriodSelector();
+  renderOverview();
+  renderThietBi();
+  renderHoaChat();
+  renderMoHinh();
+  renderThuNghiem();
+
+  const d = new Date(timestamp);
+  const staleTag = stale ? '<span class="stale-note">⏳ dữ liệu cũ, đang tải bản mới...</span>' : '';
+  document.getElementById('updatedTag').innerHTML =
+    (stale ? '🟡' : '🟢') + ' Cập nhật lúc ' + d.toLocaleTimeString('vi-VN') + ' ' + d.toLocaleDateString('vi-VN') + staleTag;
+}
+
+// Hiện ngay dữ liệu đã lưu từ lần trước (nếu có) trong lúc chờ tải bản mới
+function showCachedFirst() {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return false;
+    const parsed = JSON.parse(cached);
+    applyState(parsed.processed, parsed.timestamp, true);
+    return true;
+  } catch (e) { return false; }
+}
+
+async function loadAll(forceSpinner) {
+  const hadCache = !forceSpinner && showCachedFirst();
+  if (!hadCache) document.getElementById('updatedTag').textContent = 'Đang tải...';
+
+  try {
+    const [data, thietbi, hoachat, mohinh, thunghiem] = await Promise.all([
+      fetchTSV(URLS.data), fetchTSV(URLS.thietbi), fetchTSV(URLS.hoachat),
+      fetchTSV(URLS.mohinh), fetchTSV(URLS.thunghiem)
+    ]);
+    const processed = processRawData(data, thietbi, hoachat, mohinh, thunghiem);
+    const timestamp = Date.now();
+    applyState(processed, timestamp, false);
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ processed, timestamp })); } catch(e) {}
+  } catch (e) {
+    if (!hadCache) document.getElementById('updatedTag').textContent = '❌ Lỗi tải dữ liệu';
+    console.error(e);
+  }
+}
+
+/* ══════════ BỘ LỌC THÁNG/QUÝ ══════════ */
+function buildPeriodSelector() {
+  const monthsWithData = [...new Set(STATE.rows.map(r => r.thang))].sort((a,b)=>a-b);
+  const sel = document.getElementById('periodSel');
+  const prevVal = STATE.period;
+  sel.innerHTML = '';
+  if (STATE.mode === 'thang') {
+    monthsWithData.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m; o.textContent = 'Tháng ' + m;
+      sel.appendChild(o);
+    });
+    sel.value = prevVal && monthsWithData.includes(prevVal) ? prevVal : monthsWithData[monthsWithData.length-1];
+  } else {
+    const quys = [...new Set(monthsWithData.map(m => Math.ceil(m/3)))];
+    quys.forEach(q => {
+      const o = document.createElement('option');
+      o.value = q; o.textContent = 'Quý ' + q;
+      sel.appendChild(o);
+    });
+    sel.value = prevVal && quys.includes(prevVal) ? prevVal : quys[quys.length-1];
+  }
+  STATE.period = parseInt(sel.value);
+}
+
+document.getElementById('modeSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  STATE.mode = btn.dataset.mode;
+  STATE.period = null;
+  buildPeriodSelector();
+  renderOverview();
+});
+document.getElementById('periodSel').addEventListener('change', e => {
+  STATE.period = parseInt(e.target.value);
+  renderOverview();
+});
+
+/* ══════════ RENDER: TỔNG QUAN ══════════ */
+function getFilteredRows() {
+  if (STATE.mode === 'thang') return STATE.rows.filter(r => r.thang === STATE.period);
+  const months = [1,2,3].map(x => (STATE.period-1)*3 + x);
+  return STATE.rows.filter(r => months.includes(r.thang));
+}
+
+function renderOverview() {
+  const rows = getFilteredRows();
+  const tot = rows.reduce((a,r) => {
+    a.khLan+=r.khLan; a.ttLan+=r.ttLan; a.khMau+=r.khMau; a.ttMau+=r.ttMau; a.khCP+=r.khCP; a.ttCP+=r.ttCP;
+    return a;
+  }, {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,ttCP:0});
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Số lần phân tích</div>
+      <div class="kpi-row"><span class="kpi-val">${fmtNum(tot.ttLan)}</span><span class="kpi-sep">/</span>
+      <span class="kpi-kh">${fmtNum(tot.khLan)} KH</span>${pctBadge(tot.ttLan,tot.khLan)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Số mẫu phân tích</div>
+      <div class="kpi-row"><span class="kpi-val">${fmtNum(tot.ttMau)}</span><span class="kpi-sep">/</span>
+      <span class="kpi-kh">${fmtNum(tot.khMau)} KH</span>${pctBadge(tot.ttMau,tot.khMau)}</div>
+    </div>
+    <div class="kpi-card money">
+      <div class="kpi-label">Chi phí thực tế</div>
+      <div class="kpi-row"><span class="kpi-val">${fmtMoney(tot.ttCP)}</span></div>
+      <div style="font-size:11.5px;color:#94A3B8;margin-top:4px">Ngân sách KH: ${fmtMoney(tot.khCP)}</div>
+    </div>`;
+
+  // Bảng theo nhóm
+  const byNhom = {};
+  rows.forEach(r => {
+    if (!byNhom[r.nhom]) byNhom[r.nhom] = {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,ttCP:0};
+    const n = byNhom[r.nhom];
+    n.khLan+=r.khLan; n.ttLan+=r.ttLan; n.khMau+=r.khMau; n.ttMau+=r.ttMau; n.khCP+=r.khCP; n.ttCP+=r.ttCP;
+  });
+  function ratioCell(tt, kh) {
+    if (!kh) return '<td class="num">—</td>';
+    const p = Math.round((tt/kh)*100);
+    const cls = p >= 90 ? 'badge-green' : (p >= 60 ? 'badge-yellow' : 'badge-red');
+    return `<td class="num"><span class="badge ${cls}">${p}%</span></td>`;
+  }
+
+  let html = `<table class="data-table"><thead><tr>
+    <th>Nhóm</th><th class="num">KH Lần</th><th class="num">TT Lần</th><th class="num">Tỷ lệ Lần</th>
+    <th class="num">KH Mẫu</th><th class="num">TT Mẫu</th><th class="num">Tỷ lệ Mẫu</th>
+    <th class="num">KH Chi phí</th><th class="num">TT Chi phí</th><th class="num">Tỷ lệ CP</th></tr></thead><tbody>`;
+  const grand = {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,ttCP:0};
+  Object.keys(byNhom).forEach(nhom => {
+    const n = byNhom[nhom];
+    grand.khLan+=n.khLan; grand.ttLan+=n.ttLan; grand.khMau+=n.khMau; grand.ttMau+=n.ttMau; grand.khCP+=n.khCP; grand.ttCP+=n.ttCP;
+    html += `<tr><td><strong>${nhom}</strong></td>
+      <td class="num">${fmtNum(n.khLan)}</td><td class="num">${fmtNum(n.ttLan)}</td>${ratioCell(n.ttLan,n.khLan)}
+      <td class="num">${fmtNum(n.khMau)}</td><td class="num">${fmtNum(n.ttMau)}</td>${ratioCell(n.ttMau,n.khMau)}
+      <td class="num">${fmtMoney(n.khCP)}</td><td class="num">${fmtMoney(n.ttCP)}</td>${ratioCell(n.ttCP,n.khCP)}</tr>`;
+  });
+  if (Object.keys(byNhom).length) {
+    html += `<tr style="background:#F5F8FC;font-weight:800;border-top:2px solid #DDE6F0">
+      <td>TỔNG</td>
+      <td class="num">${fmtNum(grand.khLan)}</td><td class="num">${fmtNum(grand.ttLan)}</td>${ratioCell(grand.ttLan,grand.khLan)}
+      <td class="num">${fmtNum(grand.khMau)}</td><td class="num">${fmtNum(grand.ttMau)}</td>${ratioCell(grand.ttMau,grand.khMau)}
+      <td class="num">${fmtMoney(grand.khCP)}</td><td class="num">${fmtMoney(grand.ttCP)}</td>${ratioCell(grand.ttCP,grand.khCP)}</tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('nhomTableWrap').innerHTML = html || '<div class="empty-state">Chưa có dữ liệu</div>';
+
+  renderCharts();
+}
+
+function renderCharts() {
+  const months = [...new Set(STATE.rows.map(r=>r.thang))].sort((a,b)=>a-b);
+  const byMonth = months.map(m => {
+    const rs = STATE.rows.filter(r=>r.thang===m);
+    return rs.reduce((a,r)=>{a.ttLan+=r.ttLan;a.ttMau+=r.ttMau;a.khCP+=r.khCP;a.ttCP+=r.ttCP;return a;},{ttLan:0,ttMau:0,khCP:0,ttCP:0});
+  });
+  const labels = months.map(m=>'T'+m);
+
+  if (trendChartObj) trendChartObj.destroy();
+  trendChartObj = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Số lần PT', data: byMonth.map(x=>x.ttLan), borderColor:'#2E9FD8', backgroundColor:'rgba(46,159,216,.12)', fill:true, tension:.35 },
+      { label:'Số mẫu', data: byMonth.map(x=>x.ttMau), borderColor:'#2E7D32', backgroundColor:'rgba(46,125,50,.1)', fill:true, tension:.35 }
+    ]},
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
+  });
+
+  if (cpChartObj) cpChartObj.destroy();
+  cpChartObj = new Chart(document.getElementById('cpChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'Chi phí KH', data: byMonth.map(x=>x.khCP), backgroundColor:'#DDE6F0' },
+      { label:'Chi phí TT', data: byMonth.map(x=>x.ttCP), backgroundColor:'#1B2E7A' }
+    ]},
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
+  });
+}
+
+/* ══════════ RENDER: THIẾT BỊ ══════════ */
+function renderThietBi() {
+  const list = STATE.thietbi;
+  const total = list.length;
+  const tot = list.filter(r=>r['Tình trạng']==='Tốt').length;
+  const canBaoTri = list.filter(r=>r['Tình trạng']==='Cần bảo trì').length;
+  const hong = list.filter(r=>r['Tình trạng']==='Hỏng'||r['Tình trạng']==='Hỏng / Ngưng').length;
+  const today = new Date();
+  const soon = list.filter(r=>{
+    const d = r['Ngày đến hạn HC']; if(!d) return false;
+    const p = d.split('/'); if(p.length!==3) return false;
+    const dt = new Date(p[2],p[1]-1,p[0]);
+    const days = Math.ceil((dt-today)/86400000);
+    return days<=30;
+  }).length;
+
+  document.getElementById('tbKpi').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Tổng thiết bị</div><div class="kpi-val">${total}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Hoạt động tốt</div><div class="kpi-val" style="color:#2E7D32">${tot}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Cần bảo trì / Hỏng</div><div class="kpi-val" style="color:#B91C1C">${canBaoTri+hong}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Sắp đến hạn hiệu chuẩn (≤30 ngày)</div><div class="kpi-val" style="color:#F57F17">${soon}</div></div>`;
+
+  let html = `<table class="data-table"><thead><tr>
+    <th>Tên thiết bị</th><th>Loại</th><th>Bảo hành</th><th>Hiệu chuẩn</th><th>Hạn HC gần nhất</th><th>Tình trạng</th><th>Ghi chú</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    const tt = r['Tình trạng'];
+    const cls = tt==='Tốt' ? 'badge-green' : (tt==='Cần bảo trì' ? 'badge-yellow' : 'badge-red');
+    html += `<tr><td><strong>${r['Tên thiết bị']||''}</strong></td><td>${r['Loại']||''}</td>
+      <td>${r['Tình trạng BH']||''}</td><td>${r['Đã hiệu chuẩn']||''}</td>
+      <td>${r['Ngày đến hạn HC']||'—'}</td>
+      <td><span class="badge ${cls}">${tt||'—'}</span></td><td style="font-size:11.5px;color:#94A3B8">${r['Ghi chú']||''}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('tbTableWrap').innerHTML = html;
+}
+
+/* ══════════ RENDER: HÓA CHẤT ══════════ */
+function renderHoaChat() {
+  const list = STATE.hoachat;
+  const total = list.length;
+  const low = list.filter(r => num(r['Tồn kho']) <= num(r['Mức tối thiểu'])).length;
+  const dangDat = list.filter(r => r['Đang đặt']==='Có').length;
+
+  document.getElementById('hcKpi').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Tổng loại hóa chất</div><div class="kpi-val">${total}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tồn kho thấp</div><div class="kpi-val" style="color:#B91C1C">${low}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Đang đặt hàng</div><div class="kpi-val" style="color:#1565C0">${dangDat}</div></div>`;
+
+  let html = `<table class="data-table"><thead><tr>
+    <th>Tên hóa chất</th><th class="num">Tồn kho</th><th class="num">Mức tối thiểu</th><th>Đơn vị</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    const ton = num(r['Tồn kho']), min = num(r['Mức tối thiểu']);
+    const isLow = ton <= min;
+    html += `<tr><td><strong>${r['Tên hóa chất']||''}</strong></td>
+      <td class="num">${fmtNum(ton)}</td><td class="num">${fmtNum(min)}</td><td>${r['Đơn vị']||''}</td>
+      <td>${isLow ? '<span class="badge badge-red">Tồn thấp</span>' : '<span class="badge badge-green">Đủ</span>'}</td>
+      <td style="font-size:11.5px;color:#94A3B8">${r['Ghi chú']||''}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('hcTableWrap').innerHTML = html;
+}
+
+/* ══════════ RENDER: MÔ HÌNH THỬ NGHIỆM ══════════ */
+function renderMoHinh() {
+  const list = STATE.mohinh;
+  if (!list.length) { document.getElementById('mhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>'; return; }
+  let html = `<table class="data-table"><thead><tr><th>Tên mô hình</th><th>Công việc thực hiện</th><th>Tình trạng</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    const tt = r['Tình trạng']||'';
+    const cls = tt==='Đang chạy' ? 'badge-blue' : tt==='Hoàn thành' ? 'badge-green' : tt==='Lỗi/Sự cố' ? 'badge-red' : 'badge-gray';
+    html += `<tr><td><strong>${r['Tên mô hình']||''}</strong></td><td>${r['Công việc thực hiện']||''}</td>
+      <td><span class="badge ${cls}">${tt||'—'}</span></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('mhTableWrap').innerHTML = html;
+}
+
+/* ══════════ RENDER: THỬ NGHIỆM PP MỚI ══════════ */
+function renderThuNghiem() {
+  const list = STATE.thunghiem;
+  if (!list.length) { document.getElementById('tnWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>'; return; }
+  let html = '';
+  list.forEach(r => {
+    const pct = num(r['Mức độ (%)'] || r['Mức độ']);
+    html += `<div class="pp-item">
+      <div class="pp-head"><span class="pp-name">${r['Tên chỉ tiêu']||r['Chỉ tiêu']||''}</span>
+      <span class="badge ${pct>=100?'badge-green':'badge-blue'}">${r['Tiến độ']||''} · ${pct}%</span></div>
+      <div class="pp-method">${r['Tên phương pháp']||r['Phương pháp']||''}</div>
+      <div class="pp-bar-bg"><div class="pp-bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
+      <div class="pp-note">${r['Công việc đã thực hiện']||r['Công việc']||''}</div>
+    </div>`;
+  });
+  document.getElementById('tnWrap').innerHTML = html;
+}
+
+/* ══════════ KHỞI ĐỘNG ══════════ */
+loadAll(false);
+setInterval(() => loadAll(true), 5 * 60 * 1000); // tự làm mới mỗi 5 phút
+</script>
+</body>
+</html>
