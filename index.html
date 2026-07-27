@@ -140,11 +140,6 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 
     <div class="kpi-grid" id="kpiGrid"></div>
 
-    <div class="card" id="nextPlanCard" style="border:1.5px dashed #B7CDEA;background:#F7FAFF">
-      <div class="card-title" id="nextPlanTitle">🗓️ Kế hoạch tháng tiếp theo</div>
-      <div class="kpi-grid" id="nextPlanGrid"></div>
-    </div>
-
     <div class="grid2">
       <div class="card">
         <div class="card-title">📈 Xu hướng số lần & số mẫu phân tích (thực tế)</div>
@@ -159,6 +154,11 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="card">
       <div class="card-title">📋 Chi tiết theo nhóm ngành</div>
       <div id="nhomTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+
+    <div class="card" id="nextPlanCard" style="border:1.5px dashed #B7CDEA;background:#F7FAFF">
+      <div class="card-title" id="nextPlanTitle">🗓️ Kế hoạch tháng tiếp theo</div>
+      <div class="kpi-grid" id="nextPlanGrid"></div>
     </div>
   </div>
 
@@ -583,22 +583,32 @@ function renderThietBi() {
 function renderHoaChat() {
   const list = STATE.hoachat;
   const total = list.length;
-  const low = list.filter(r => num(r['Tồn kho']) <= num(r['Mức tối thiểu'])).length;
-  const dangDat = list.filter(r => r['Đang đặt']==='Có').length;
+  const rows = list.map(r => {
+    const ton = num(r['Tồn kho']), min = num(r['Mức tối thiểu']);
+    const isDangDat = ton === 0;
+    const isLow = !isDangDat && ton <= min;
+    // Thứ tự ưu tiên hiển thị: Tồn thấp trước, rồi Đang đặt, rồi Đủ
+    const priority = isLow ? 0 : (isDangDat ? 1 : 2);
+    return { r, ton, min, isDangDat, isLow, priority };
+  }).sort((a,b) => a.priority - b.priority);
+
+  const low = rows.filter(x => x.isLow).length;
+  const dangDat = rows.filter(x => x.isDangDat).length;
 
   document.getElementById('hcKpi').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Tổng loại hóa chất</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Tồn kho thấp</div><div class="kpi-val" style="color:#B91C1C">${low}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Đang đặt hàng</div><div class="kpi-val" style="color:#1565C0">${dangDat}</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">Đang đặt hàng (hết kho)</div><div class="kpi-val" style="color:#1565C0">${dangDat}</div></div>`;
 
   let html = `<table class="data-table"><thead><tr>
     <th>Tên hóa chất</th><th class="num">Tồn kho</th><th class="num">Mức tối thiểu</th><th>Đơn vị</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody>`;
-  list.forEach(r => {
-    const ton = num(r['Tồn kho']), min = num(r['Mức tối thiểu']);
-    const isLow = ton <= min;
+  rows.forEach(({r, ton, min, isDangDat, isLow}) => {
+    const badge = isLow ? '<span class="badge badge-red">Tồn thấp</span>'
+      : isDangDat ? '<span class="badge badge-blue">Đang đặt</span>'
+      : '<span class="badge badge-green">Đủ</span>';
     html += `<tr><td><strong>${r['Tên hóa chất']||''}</strong></td>
       <td class="num">${fmtNum(ton)}</td><td class="num">${fmtNum(min)}</td><td>${r['Đơn vị']||''}</td>
-      <td>${isLow ? '<span class="badge badge-red">Tồn thấp</span>' : '<span class="badge badge-green">Đủ</span>'}</td>
+      <td>${badge}</td>
       <td style="font-size:11.5px;color:#94A3B8">${r['Ghi chú']||''}</td></tr>`;
   });
   html += '</tbody></table>';
