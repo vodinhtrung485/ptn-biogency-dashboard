@@ -118,8 +118,12 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* BẢNG EXCEL DÁN VÀO MỤC TÙY CHỈNH */
 table.ghichu-mini-table{border-collapse:collapse;font-size:12px;margin:2px 0;background:#fff}
-table.ghichu-mini-table td{border:1px solid #D9E1EC;padding:5px 9px;white-space:pre-wrap}
-table.ghichu-mini-table tr:first-child td{background:#F5F8FC;font-weight:700;color:#334155}
+table.ghichu-mini-table td,table.ghichu-mini-table th{border:1px solid #D9E1EC;padding:5px 9px;white-space:pre-wrap}
+table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:#F5F8FC;font-weight:700;color:#334155}
+.ghichu-editable{width:100%;min-height:110px;max-height:360px;overflow:auto;padding:9px 12px;
+  border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px;white-space:pre-wrap;background:#fff}
+.ghichu-editable:focus{outline:2px solid #BFDBFE}
+.ghichu-editable:empty::before{content:attr(data-placeholder);color:#94A3B8}
 </style>
 </head>
 <body>
@@ -294,8 +298,9 @@ table.ghichu-mini-table tr:first-child td{background:#F5F8FC;font-weight:700;col
       </div>
       <div>
         <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Nội dung</label>
-        <textarea id="ghiChuNoiDung" rows="4" placeholder="Ghi chú, mô tả chi tiết... (có thể copy 1 vùng ô Excel/Google Sheets rồi dán Ctrl+V vào đây)" style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
-        <div style="font-size:11px;color:#94A3B8;margin-top:5px">💡 Mẹo: bôi đen 1 vùng ô trong Excel/Google Sheets, Ctrl+C rồi Ctrl+V vào ô này — hệ thống tự nhận diện và hiển thị lại thành bảng có hàng/cột.</div>
+        <div id="ghiChuNoiDung" class="ghichu-editable" contenteditable="true"
+          data-placeholder="Ghi chú, mô tả chi tiết... (có thể copy 1 vùng ô Excel/Google Sheets rồi dán Ctrl+V vào đây)"></div>
+        <div style="font-size:11px;color:#94A3B8;margin-top:5px">💡 Mẹo: bôi đen 1 vùng ô trong Excel/Google Sheets, Ctrl+C rồi Ctrl+V vào ô này — bảng sẽ được giữ nguyên hàng/cột y như bên Excel.</div>
       </div>
       <div>
         <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Trạng thái</label>
@@ -584,7 +589,8 @@ function _esc(s) {
 
 // Nội dung dán từ Excel/Google Sheets luôn có ký tự tab (\t) giữa các ô và
 // xuống dòng giữa các hàng — nếu phát hiện thấy tab thì vẽ lại thành bảng
-// thật (hàng/cột) thay vì hiện chữ thô.
+// thật (hàng/cột) thay vì hiện chữ thô. Đây là fallback khi trình duyệt chỉ
+// đưa được text/plain (không có text/html) lúc dán.
 function _looksLikeTable(text) {
   return /\t/.test(String(text || ''));
 }
@@ -599,8 +605,46 @@ function _renderTableFromPaste(text) {
   html += '</table>';
   return html;
 }
+
+// Chỉ giữ lại các thẻ an toàn/cần thiết cho 1 bảng dữ liệu (bảng, đoạn văn,
+// in đậm/nghiêng, xuống dòng...), bỏ hết style/class/script/thuộc tính lạ
+// từ HTML gốc của Excel/Google Sheets khi dán — vừa an toàn vừa đồng bộ giao diện.
+const GHICHU_ALLOWED_TAGS = new Set(['table','thead','tbody','tr','td','th','br','b','strong','i','em','u','p','div','span','ul','ol','li']);
+function _sanitizePastedHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = String(html || '');
+  (function clean(node) {
+    Array.prototype.slice.call(node.childNodes).forEach(function(child) {
+      if (child.nodeType === 1) {
+        const tag = child.tagName.toLowerCase();
+        if (tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'link') {
+          child.parentNode.removeChild(child);
+          return;
+        }
+        if (!GHICHU_ALLOWED_TAGS.has(tag)) {
+          // Bóc thẻ lạ ra, giữ lại nội dung bên trong
+          while (child.firstChild) child.parentNode.insertBefore(child.firstChild, child);
+          child.parentNode.removeChild(child);
+          return;
+        }
+        Array.prototype.slice.call(child.attributes).forEach(function(attr) {
+          if (attr.name !== 'colspan' && attr.name !== 'rowspan') child.removeAttribute(attr.name);
+        });
+        clean(child);
+      } else if (child.nodeType === 8) {
+        child.parentNode.removeChild(child);
+      }
+    });
+  })(tmp);
+  Array.prototype.slice.call(tmp.querySelectorAll('table')).forEach(function(t) { t.className = 'ghichu-mini-table'; });
+  return tmp.innerHTML.trim();
+}
+
+// Chuẩn hóa nội dung cũ (lưu dạng text thô trước đây) hoặc mới (đã là HTML bảng
+// sạch) thành HTML để hiển thị — dùng chung cho cả list và lúc mở modal Sửa.
 function _renderNoiDung(text) {
   if (!text) return '';
+  if (/<table/i.test(text)) return text; // đã là HTML bảng được lưu sẵn, an toàn vì tự sinh ra
   if (_looksLikeTable(text)) return _renderTableFromPaste(text);
   return `<div style="white-space:pre-wrap">${_esc(text)}</div>`;
 }
@@ -621,7 +665,7 @@ function openGhiChuAdd() {
   document.getElementById('ghiChuModalTitle').textContent = '➕ Thêm mục mới';
   document.getElementById('ghiChuNgay').value = '';
   document.getElementById('ghiChuTieuDe').value = '';
-  document.getElementById('ghiChuNoiDung').value = '';
+  document.getElementById('ghiChuNoiDung').innerHTML = '';
   document.getElementById('ghiChuTrangThai').value = 'Đang theo dõi';
   document.getElementById('ghiChuModalErr').style.display = 'none';
   document.getElementById('ghiChuModalOverlay').classList.add('open');
@@ -634,7 +678,7 @@ function openGhiChuEdit(id) {
   document.getElementById('ghiChuModalTitle').textContent = '✏️ Sửa mục';
   document.getElementById('ghiChuNgay').value = _ghiChuDateToInput(r.ngay);
   document.getElementById('ghiChuTieuDe').value = r.tieuDe || '';
-  document.getElementById('ghiChuNoiDung').value = r.noiDung || '';
+  document.getElementById('ghiChuNoiDung').innerHTML = _renderNoiDung(r.noiDung || '');
   document.getElementById('ghiChuTrangThai').value = r.trangThai || 'Đang theo dõi';
   document.getElementById('ghiChuModalErr').style.display = 'none';
   document.getElementById('ghiChuModalOverlay').classList.add('open');
@@ -643,6 +687,30 @@ function openGhiChuEdit(id) {
 function closeGhiChuModal() {
   document.getElementById('ghiChuModalOverlay').classList.remove('open');
 }
+
+// Dán từ Excel/Google Sheets: trình duyệt kèm cả text/html (bảng thật) lẫn
+// text/plain (tab-delimited). Ưu tiên text/html để giữ đúng số hàng/cột như bên Excel;
+// chỉ dùng text/plain làm phương án dự phòng nếu nguồn dán không có HTML.
+(function() {
+  const box = document.getElementById('ghiChuNoiDung');
+  if (!box) return;
+  box.addEventListener('paste', function(e) {
+    e.preventDefault();
+    const cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    const html = cd.getData('text/html');
+    const text = cd.getData('text/plain');
+    let insertHtml;
+    if (html && /<table/i.test(html)) {
+      insertHtml = _sanitizePastedHtml(html);
+    } else if (text && _looksLikeTable(text)) {
+      insertHtml = _renderTableFromPaste(text);
+    } else {
+      insertHtml = _esc(text || '').replace(/\n/g, '<br>');
+    }
+    document.execCommand('insertHTML', false, insertHtml);
+  });
+})();
 
 async function submitGhiChu() {
   const tieuDe = document.getElementById('ghiChuTieuDe').value.trim();
@@ -656,7 +724,7 @@ async function submitGhiChu() {
     id: _ghiChuEditId || undefined,
     ngay: _ghiChuDateFromInput(document.getElementById('ghiChuNgay').value),
     tieuDe: tieuDe,
-    noiDung: document.getElementById('ghiChuNoiDung').value.trim(),
+    noiDung: _sanitizePastedHtml(document.getElementById('ghiChuNoiDung').innerHTML),
     trangThai: document.getElementById('ghiChuTrangThai').value
   };
   const btn = document.getElementById('ghiChuSaveBtn');
