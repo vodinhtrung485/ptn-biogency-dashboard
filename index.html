@@ -200,6 +200,10 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
       <div class="card-title">⚙️ Mô hình thử nghiệm đang triển khai</div>
       <div id="mhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
+    <div class="card" style="border:1.5px dashed #B7CDEA;background:#F7FAFF">
+      <div class="card-title">🗓️ Kế hoạch mô hình tháng tiếp theo</div>
+      <div id="khmhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
   </div>
 
   <!-- ══ TAB: THỬ NGHIỆM PP MỚI ══ -->
@@ -262,7 +266,8 @@ const URLS = {
   hoachat:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=480606526&single=true&output=tsv',
   mohinh:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=264119043&single=true&output=tsv',
   thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
-  donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv'
+  donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
+  khmohinh:  '' // TODO: dán link "Xuất bản lên web" của tab "🗓️ KH Mô hình" (dạng TSV) vào đây sau khi Trung publish
 };
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
 
@@ -305,7 +310,7 @@ function tinhKeHoachThangTong(thang) {
   }, { khLan: 0, khMau: 0, khCP: 0 });
 }
 
-let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], donhang: [], mode: 'thang', period: null, dhThang: null };
+let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], donhang: [], khmohinh: [], mode: 'thang', period: null, dhThang: null };
 let trendChartObj = null, cpChartObj = null;
 
 /* ══════════ HELPERS ══════════ */
@@ -347,12 +352,13 @@ function switchTab(id) {
 
 /* ══════════ LOAD DATA ══════════ */
 async function fetchTSV(url) {
+  if (!url) return []; // chưa cấu hình link publish — trả về rỗng thay vì lỗi
   const res = await fetch(url + '&_=' + Date.now());
   const text = await res.text();
   return parseTSV(text);
 }
 
-function processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang) {
+function processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang, khmohinh) {
   const seen = {};
   const rows = [];
   data.forEach(r => {
@@ -376,7 +382,8 @@ function processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang) {
     hoachat: hoachat.filter(r => r['ID']),
     mohinh: mohinh.filter(r => r['Tên mô hình']),
     thunghiem: thunghiem.filter(r => r['Tên chỉ tiêu'] || r['Chỉ tiêu']),
-    donhang: donhang.filter(r => r['Đơn hàng'] && !isNaN(parseInt(r['Tháng'])))
+    donhang: donhang.filter(r => r['Đơn hàng'] && !isNaN(parseInt(r['Tháng']))),
+    khmohinh: khmohinh.filter(r => r['Tên mô hình'] && !isNaN(parseInt(r['Tháng'])))
   };
 }
 
@@ -387,12 +394,14 @@ function applyState(processed, timestamp, stale) {
   STATE.mohinh = processed.mohinh;
   STATE.thunghiem = processed.thunghiem;
   STATE.donhang = processed.donhang;
+  STATE.khmohinh = processed.khmohinh;
 
   buildPeriodSelector();
   renderOverview();
   renderThietBi();
   renderHoaChat();
   renderMoHinh();
+  renderKHMH();
   renderThuNghiem();
   buildDhPeriodSelector();
   renderDonHang();
@@ -419,11 +428,11 @@ async function loadAll(forceSpinner) {
   if (!hadCache) document.getElementById('updatedTag').textContent = 'Đang tải...';
 
   try {
-    const [data, thietbi, hoachat, mohinh, thunghiem, donhang] = await Promise.all([
+    const [data, thietbi, hoachat, mohinh, thunghiem, donhang, khmohinh] = await Promise.all([
       fetchTSV(URLS.data), fetchTSV(URLS.thietbi), fetchTSV(URLS.hoachat),
-      fetchTSV(URLS.mohinh), fetchTSV(URLS.thunghiem), fetchTSV(URLS.donhang)
+      fetchTSV(URLS.mohinh), fetchTSV(URLS.thunghiem), fetchTSV(URLS.donhang), fetchTSV(URLS.khmohinh)
     ]);
-    const processed = processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang);
+    const processed = processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang, khmohinh);
     const timestamp = Date.now();
     applyState(processed, timestamp, false);
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ processed, timestamp })); } catch(e) {}
@@ -689,6 +698,21 @@ function renderMoHinh() {
   });
   html += '</tbody></table>';
   document.getElementById('mhTableWrap').innerHTML = html;
+}
+
+/* ══════════ RENDER: KẾ HOẠCH MÔ HÌNH THÁNG TIẾP THEO ══════════ */
+function renderKHMH() {
+  const wrap = document.getElementById('khmhTableWrap');
+  const list = STATE.khmohinh.slice().sort((a,b) => num(a['Tháng']) - num(b['Tháng']));
+  if (!list.length) { wrap.innerHTML = '<div class="empty-state">Chưa có kế hoạch nào</div>'; return; }
+  let html = `<table class="data-table"><thead><tr><th class="num" style="width:90px">Tháng</th><th>Tên mô hình</th><th>Người phụ trách</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    html += `<tr><td class="num">Tháng ${r['Tháng']||''}</td>
+      <td><strong>${r['Tên mô hình']||''}</strong></td>
+      <td>${r['Người phụ trách']||'—'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
 }
 
 /* ══════════ RENDER: THỬ NGHIỆM PP MỚI ══════════ */
