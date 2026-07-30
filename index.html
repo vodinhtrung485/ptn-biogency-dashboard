@@ -136,6 +136,7 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
   <button class="tab-btn" data-tab="tab-hoachat" onclick="switchTab('tab-hoachat')">🧪 Hóa chất</button>
   <button class="tab-btn" data-tab="tab-mohinh" onclick="switchTab('tab-mohinh')">⚙️ Mô hình thử nghiệm</button>
   <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
+  <button class="tab-btn" data-tab="tab-donhang" onclick="switchTab('tab-donhang')">📦 Đơn hàng</button>
 </nav>
 
 <div class="container">
@@ -209,6 +210,19 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     </div>
   </div>
 
+  <!-- ══ TAB: ĐƠN HÀNG ══ -->
+  <div class="tab-page" id="tab-donhang">
+    <div class="filter-bar">
+      <label>Tháng</label>
+      <select class="period-sel" id="dhPeriodSel"></select>
+    </div>
+    <div class="kpi-grid" id="dhKpi"></div>
+    <div class="card">
+      <div class="card-title">📦 Chi tiết đơn hàng</div>
+      <div id="dhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODAL XEM ĐƯỜNG CHUẨN (chỉ hiển thị) -->
@@ -230,7 +244,8 @@ const URLS = {
   thietbi:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=426958505&single=true&output=tsv',
   hoachat:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=480606526&single=true&output=tsv',
   mohinh:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=264119043&single=true&output=tsv',
-  thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv'
+  thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
+  donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv'
 };
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
 
@@ -273,7 +288,7 @@ function tinhKeHoachThangTong(thang) {
   }, { khLan: 0, khMau: 0, khCP: 0 });
 }
 
-let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], mode: 'thang', period: null };
+let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], donhang: [], mode: 'thang', period: null, dhThang: null };
 let trendChartObj = null, cpChartObj = null;
 
 /* ══════════ HELPERS ══════════ */
@@ -320,7 +335,7 @@ async function fetchTSV(url) {
   return parseTSV(text);
 }
 
-function processRawData(data, thietbi, hoachat, mohinh, thunghiem) {
+function processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang) {
   const seen = {};
   const rows = [];
   data.forEach(r => {
@@ -343,7 +358,8 @@ function processRawData(data, thietbi, hoachat, mohinh, thunghiem) {
     thietbi: thietbi.filter(r => r['ID']),
     hoachat: hoachat.filter(r => r['ID']),
     mohinh: mohinh.filter(r => r['Tên mô hình']),
-    thunghiem: thunghiem.filter(r => r['Tên chỉ tiêu'] || r['Chỉ tiêu'])
+    thunghiem: thunghiem.filter(r => r['Tên chỉ tiêu'] || r['Chỉ tiêu']),
+    donhang: donhang.filter(r => r['Đơn hàng'] && !isNaN(parseInt(r['Tháng'])))
   };
 }
 
@@ -353,6 +369,7 @@ function applyState(processed, timestamp, stale) {
   STATE.hoachat = processed.hoachat;
   STATE.mohinh = processed.mohinh;
   STATE.thunghiem = processed.thunghiem;
+  STATE.donhang = processed.donhang;
 
   buildPeriodSelector();
   renderOverview();
@@ -360,6 +377,8 @@ function applyState(processed, timestamp, stale) {
   renderHoaChat();
   renderMoHinh();
   renderThuNghiem();
+  buildDhPeriodSelector();
+  renderDonHang();
 
   const d = new Date(timestamp);
   const staleTag = stale ? '<span class="stale-note">⏳ dữ liệu cũ, đang tải bản mới...</span>' : '';
@@ -383,11 +402,11 @@ async function loadAll(forceSpinner) {
   if (!hadCache) document.getElementById('updatedTag').textContent = 'Đang tải...';
 
   try {
-    const [data, thietbi, hoachat, mohinh, thunghiem] = await Promise.all([
+    const [data, thietbi, hoachat, mohinh, thunghiem, donhang] = await Promise.all([
       fetchTSV(URLS.data), fetchTSV(URLS.thietbi), fetchTSV(URLS.hoachat),
-      fetchTSV(URLS.mohinh), fetchTSV(URLS.thunghiem)
+      fetchTSV(URLS.mohinh), fetchTSV(URLS.thunghiem), fetchTSV(URLS.donhang)
     ]);
-    const processed = processRawData(data, thietbi, hoachat, mohinh, thunghiem);
+    const processed = processRawData(data, thietbi, hoachat, mohinh, thunghiem, donhang);
     const timestamp = Date.now();
     applyState(processed, timestamp, false);
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ processed, timestamp })); } catch(e) {}
@@ -729,6 +748,63 @@ function openDcModal(i) {
 function closeDcModal() {
   document.getElementById('dcModalOverlay').classList.remove('open');
   if (_dcModalChart) { _dcModalChart.destroy(); _dcModalChart = null; }
+}
+
+/* ══════════ RENDER: ĐƠN HÀNG ══════════ */
+function buildDhPeriodSelector() {
+  const months = [...new Set(STATE.donhang.map(r => parseInt(r['Tháng'])))].filter(m => !isNaN(m)).sort((a,b)=>a-b);
+  const sel = document.getElementById('dhPeriodSel');
+  const prevVal = STATE.dhThang;
+  sel.innerHTML = '';
+  months.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = 'Tháng ' + m;
+    sel.appendChild(o);
+  });
+  sel.value = prevVal && months.includes(prevVal) ? prevVal : months[months.length-1];
+  STATE.dhThang = parseInt(sel.value) || null;
+}
+document.getElementById('dhPeriodSel').addEventListener('change', e => {
+  STATE.dhThang = parseInt(e.target.value);
+  renderDonHang();
+});
+
+function renderDonHang() {
+  const rows = STATE.donhang.filter(r => parseInt(r['Tháng']) === STATE.dhThang);
+  if (!rows.length) {
+    document.getElementById('dhKpi').innerHTML = '';
+    document.getElementById('dhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu đơn hàng cho tháng này</div>';
+    return;
+  }
+
+  const tongDon = rows.length;
+  const tongLanTest = rows.reduce((s,r) => s + num(r['Số lần test']), 0);
+  const canChuY = rows.filter(r => r['Còn lại'] !== '' && num(r['Còn lại']) < 0).length;
+
+  document.getElementById('dhKpi').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Tổng số đơn hàng</div><div class="kpi-val">${fmtNum(tongDon)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế)</div><div class="kpi-val">${fmtNum(tongLanTest)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Đơn cần chú ý (Còn lại &lt; 0)</div><div class="kpi-val" style="color:#B91C1C">${canChuY}</div></div>`;
+
+  const sorted = rows.slice().sort((a,b) => num(b['Số lần test']) - num(a['Số lần test']));
+  let html = `<table class="data-table"><thead><tr>
+    <th>Đơn hàng</th><th>Tên công ty</th><th class="num">Số lần test</th><th>Các tháng test</th>
+    <th>Giá trị ĐH</th><th class="num">Target</th><th class="num">Còn lại</th></tr></thead><tbody>`;
+  sorted.forEach(r => {
+    const conLaiRaw = r['Còn lại'];
+    let conLaiCell = '<td class="num">—</td>';
+    if (conLaiRaw !== '') {
+      const cl = num(conLaiRaw);
+      const cls = cl < 0 ? 'badge-red' : (cl === 0 ? 'badge-yellow' : 'badge-green');
+      conLaiCell = `<td class="num"><span class="badge ${cls}">${cl}</span></td>`;
+    }
+    html += `<tr><td><strong>${r['Đơn hàng']||''}</strong></td><td>${r['Tên công ty']||''}</td>
+      <td class="num">${fmtNum(num(r['Số lần test']))}</td><td style="font-size:11.5px;color:#94A3B8">${r['Các tháng test']||''}</td>
+      <td>${r['Giá trị ĐH']||'—'}</td><td class="num">${r['Target']!==''?fmtNum(num(r['Target'])):'—'}</td>
+      ${conLaiCell}</tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('dhTableWrap').innerHTML = html;
 }
 
 /* ══════════ KHỞI ĐỘNG ══════════ */
