@@ -237,6 +237,23 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
   </div>
 </div>
 
+<!-- MODAL XEM GIAI ĐOẠN 2 (Test đối chứng & so sánh — ảnh chụp bảng biểu) -->
+<div class="dc-modal-overlay" id="gd2ModalOverlay">
+  <div class="dc-modal-box" style="width:min(1100px,96vw)">
+    <div class="dc-modal-head">
+      <h3 id="gd2ModalTitle">🖼 Giai đoạn 2 — Test đối chứng & so sánh</h3>
+      <button class="dc-modal-close" onclick="closeGd2Modal()">✕</button>
+    </div>
+    <div style="text-align:center;max-height:78vh;overflow:auto;background:#F8FAFC;border-radius:10px;border:1px solid #E5EAF2">
+      <img id="gd2ModalImg" style="max-width:100%;display:block;margin:0 auto"
+        onerror="this.style.display='none';document.getElementById('gd2ModalErr').style.display='block'">
+      <div id="gd2ModalErr" style="display:none;padding:40px 20px;color:#B91C1C;font-size:13px">
+        ⚠️ Không tải được ảnh (link có thể chưa sẵn sàng hoặc bị chặn chia sẻ).
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ══════════ CẤU HÌNH LINK CSV/TSV ══════════ */
 const URLS = {
@@ -693,10 +710,15 @@ function renderThuNghiem() {
   list.forEach((r, i) => {
     const pct = num(r['Mức độ (%)'] || r['Mức độ']);
     const dc = _parseDuongChuan(r);
+    const gd2Url = r['Giai đoạn 2 - Hình ảnh (URL)'] || '';
 
     const dcHtml = dc
-      ? `<button class="dc-btn" onclick="openDcModal(${i})">👁 Xem đường chuẩn</button>`
-      : `<div style="font-size:11.5px;color:#94A3B8;margin-top:8px">Chưa có dữ liệu đường chuẩn / MDL / LOQ</div>`;
+      ? `<button class="dc-btn" onclick="openDcModal(${i})">👁 Xem đường chuẩn (Giai đoạn 1)</button>`
+      : `<div style="font-size:11.5px;color:#94A3B8;margin-top:8px">Chưa có dữ liệu đường chuẩn / MDL / LOQ (Giai đoạn 1)</div>`;
+
+    const gd2Html = gd2Url
+      ? `<button class="dc-btn" style="background:#F0FDF4;color:#15803D;border-color:#BBF7D0;margin-left:8px" onclick="openGd2Modal(${i})">🖼 Xem Giai đoạn 2</button>`
+      : '';
 
     html += `<div class="pp-item">
       <div class="pp-head"><span class="pp-name">${r['Tên chỉ tiêu']||r['Chỉ tiêu']||''}</span>
@@ -704,10 +726,27 @@ function renderThuNghiem() {
       <div class="pp-method">${r['Tên phương pháp']||r['Phương pháp']||''}</div>
       <div class="pp-bar-bg"><div class="pp-bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
       <div class="pp-note">${r['Công việc đã thực hiện']||r['Công việc']||''}</div>
-      ${dcHtml}
+      ${dcHtml}${gd2Html}
     </div>`;
   });
   document.getElementById('tnWrap').innerHTML = html;
+}
+
+// Mở popup xem to ảnh Giai đoạn 2 (Test đối chứng & so sánh)
+function openGd2Modal(i) {
+  const r = STATE.thunghiem[i];
+  const url = r ? (r['Giai đoạn 2 - Hình ảnh (URL)'] || '') : '';
+  if (!url) return;
+
+  document.getElementById('gd2ModalTitle').textContent = '🖼 Giai đoạn 2 — ' + (r['Tên chỉ tiêu']||r['Chỉ tiêu']||'');
+  document.getElementById('gd2ModalErr').style.display = 'none';
+  document.getElementById('gd2ModalImg').style.display = 'block';
+  document.getElementById('gd2ModalImg').src = url;
+  document.getElementById('gd2ModalOverlay').classList.add('open');
+}
+
+function closeGd2Modal() {
+  document.getElementById('gd2ModalOverlay').classList.remove('open');
 }
 
 // Mở popup xem to hình đường chuẩn + MDL/LOQ của 1 chỉ tiêu (dùng Chart.js đã có sẵn trong dashboard)
