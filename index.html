@@ -137,6 +137,7 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
   <button class="tab-btn" data-tab="tab-mohinh" onclick="switchTab('tab-mohinh')">⚙️ Mô hình thử nghiệm</button>
   <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
   <button class="tab-btn" data-tab="tab-donhang" onclick="switchTab('tab-donhang')">📦 Đơn hàng</button>
+  <button class="tab-btn" data-tab="tab-ghichu" onclick="switchTab('tab-ghichu')">📌 Mục tùy chỉnh</button>
 </nav>
 
 <div class="container">
@@ -227,6 +228,18 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     </div>
   </div>
 
+  <!-- ══ TAB: MỤC TÙY CHỈNH (tự thêm/sửa/xóa ngay trên dashboard) ══ -->
+  <div class="tab-page" id="tab-ghichu">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📌 Mục tùy chỉnh</div>
+        <button class="dc-btn" style="margin-left:auto" onclick="openGhiChuAdd()">➕ Thêm mới</button>
+      </div>
+      <div id="ghiChuErr" style="display:none;background:#FEF2F2;color:#B91C1C;padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:12px"></div>
+      <div id="ghiChuWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODAL XEM ĐƯỜNG CHUẨN (chỉ hiển thị) -->
@@ -258,6 +271,44 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
   </div>
 </div>
 
+<!-- MODAL THÊM/SỬA MỤC TÙY CHỈNH -->
+<div class="dc-modal-overlay" id="ghiChuModalOverlay">
+  <div class="dc-modal-box" style="width:min(560px,94vw)">
+    <div class="dc-modal-head">
+      <h3 id="ghiChuModalTitle">➕ Thêm mục mới</h3>
+      <button class="dc-modal-close" onclick="closeGhiChuModal()">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Ngày (tùy chọn)</label>
+        <input type="date" id="ghiChuNgay" style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Tiêu đề</label>
+        <input type="text" id="ghiChuTieuDe" placeholder="Vd: Theo dõi lịch bảo trì..." style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Nội dung</label>
+        <textarea id="ghiChuNoiDung" rows="4" placeholder="Ghi chú, mô tả chi tiết..." style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+      </div>
+      <div>
+        <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Trạng thái</label>
+        <select id="ghiChuTrangThai" style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px">
+          <option value="Đang theo dõi">Đang theo dõi</option>
+          <option value="Cần xử lý">Cần xử lý</option>
+          <option value="Hoàn thành">Hoàn thành</option>
+          <option value="Lưu ý">Lưu ý</option>
+        </select>
+      </div>
+      <div id="ghiChuModalErr" style="display:none;background:#FEF2F2;color:#B91C1C;padding:8px 12px;border-radius:8px;font-size:12px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button onclick="closeGhiChuModal()" style="background:#F1F5F9;color:#475569;border:none;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">Hủy</button>
+        <button id="ghiChuSaveBtn" onclick="submitGhiChu()" style="background:#1B2E7A;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ══════════ CẤU HÌNH LINK CSV/TSV ══════════ */
 const URLS = {
@@ -269,6 +320,11 @@ const URLS = {
   donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
 };
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
+
+// Link Web App (Apps Script) dùng riêng cho mục "Mục tùy chỉnh" — cho phép
+// dashboard tĩnh này ghi dữ liệu (thêm/sửa/xóa) ngược lại vào Google Sheets.
+// Không liên quan tới các URLS (TSV publish) ở trên — đây là kênh ghi, TSV là kênh đọc.
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbw9kYyNj2NdxBs3KIFbBATuosWfpKjrhPKAWyD05T4jKr-m3v2lB-Ua0NTsybjnNlwE/exec';
 
 /* ══════════ BẢNG KẾ HOẠCH (đồng bộ với KH_LAN trong MÃ.GS) ══════════ */
 // [T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12] — cập nhật khi có kế hoạch năm mới
@@ -446,6 +502,157 @@ async function loadAll(forceSpinner) {
   } catch (e) {
     if (!hadCache) document.getElementById('updatedTag').textContent = '❌ Lỗi tải dữ liệu';
     console.error(e);
+  }
+}
+
+/* ══════════ MỤC TÙY CHỈNH (tự thêm/sửa/xóa qua Web App) ══════════ */
+let _ghiChuData = [];
+let _ghiChuEditId = null;
+
+// Dùng Content-Type text/plain để trình duyệt KHÔNG gửi preflight OPTIONS
+// (Apps Script Web App không xử lý OPTIONS) — đây là cách chuẩn để POST JSON
+// từ 1 domain khác (GitHub Pages) sang Apps Script.
+async function ghiChuCall(action, payload) {
+  const res = await fetch(WEBAPP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, payload: payload || {} })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function loadGhiChu() {
+  const wrap = document.getElementById('ghiChuWrap');
+  const errBox = document.getElementById('ghiChuErr');
+  errBox.style.display = 'none';
+  try {
+    const res = await ghiChuCall('ghiChu_get');
+    if (!res.ok) throw new Error(res.msg || 'Lỗi không xác định');
+    _ghiChuData = res.data || [];
+    renderGhiChu();
+  } catch (e) {
+    wrap.innerHTML = '';
+    errBox.textContent = '⚠️ Không tải được dữ liệu: ' + e.message;
+    errBox.style.display = 'block';
+  }
+}
+
+function _ghiChuBadgeClass(tt) {
+  if (tt === 'Hoàn thành') return 'badge-green';
+  if (tt === 'Cần xử lý') return 'badge-red';
+  if (tt === 'Lưu ý') return 'badge-yellow';
+  return 'badge-blue';
+}
+
+function renderGhiChu() {
+  const wrap = document.getElementById('ghiChuWrap');
+  if (!_ghiChuData.length) {
+    wrap.innerHTML = '<div class="empty-state">Chưa có mục nào — bấm "➕ Thêm mới" để bắt đầu.</div>';
+    return;
+  }
+  const list = _ghiChuData.slice().sort((a, b) => (b.capNhat || '').localeCompare(a.capNhat || ''));
+  let html = `<table class="data-table"><thead><tr>
+    <th style="width:100px">Ngày</th><th>Tiêu đề</th><th>Nội dung</th>
+    <th style="width:120px">Trạng thái</th><th style="width:110px">Thao tác</th>
+  </tr></thead><tbody>`;
+  list.forEach(r => {
+    html += `<tr>
+      <td>${r.ngay || '—'}</td>
+      <td><strong>${_esc(r.tieuDe) || '—'}</strong></td>
+      <td style="white-space:pre-wrap">${_esc(r.noiDung) || ''}</td>
+      <td><span class="badge ${_ghiChuBadgeClass(r.trangThai)}">${r.trangThai || '—'}</span></td>
+      <td>
+        <button onclick="openGhiChuEdit('${r.id}')" style="background:none;border:none;color:#1D4ED8;cursor:pointer;font-size:12px;font-weight:700;margin-right:8px">Sửa</button>
+        <button onclick="removeGhiChu('${r.id}')" style="background:none;border:none;color:#B91C1C;cursor:pointer;font-size:12px;font-weight:700">Xóa</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function _esc(s) {
+  return String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function _ghiChuDateToInput(ddmmyyyy) {
+  const m = String(ddmmyyyy || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return '';
+  return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+}
+function _ghiChuDateFromInput(yyyymmdd) {
+  const m = String(yyyymmdd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return m[3] + '/' + m[2] + '/' + m[1];
+}
+
+function openGhiChuAdd() {
+  _ghiChuEditId = null;
+  document.getElementById('ghiChuModalTitle').textContent = '➕ Thêm mục mới';
+  document.getElementById('ghiChuNgay').value = '';
+  document.getElementById('ghiChuTieuDe').value = '';
+  document.getElementById('ghiChuNoiDung').value = '';
+  document.getElementById('ghiChuTrangThai').value = 'Đang theo dõi';
+  document.getElementById('ghiChuModalErr').style.display = 'none';
+  document.getElementById('ghiChuModalOverlay').classList.add('open');
+}
+
+function openGhiChuEdit(id) {
+  const r = _ghiChuData.find(x => x.id === id);
+  if (!r) return;
+  _ghiChuEditId = id;
+  document.getElementById('ghiChuModalTitle').textContent = '✏️ Sửa mục';
+  document.getElementById('ghiChuNgay').value = _ghiChuDateToInput(r.ngay);
+  document.getElementById('ghiChuTieuDe').value = r.tieuDe || '';
+  document.getElementById('ghiChuNoiDung').value = r.noiDung || '';
+  document.getElementById('ghiChuTrangThai').value = r.trangThai || 'Đang theo dõi';
+  document.getElementById('ghiChuModalErr').style.display = 'none';
+  document.getElementById('ghiChuModalOverlay').classList.add('open');
+}
+
+function closeGhiChuModal() {
+  document.getElementById('ghiChuModalOverlay').classList.remove('open');
+}
+
+async function submitGhiChu() {
+  const tieuDe = document.getElementById('ghiChuTieuDe').value.trim();
+  const errBox = document.getElementById('ghiChuModalErr');
+  if (!tieuDe) {
+    errBox.textContent = 'Vui lòng nhập tiêu đề.';
+    errBox.style.display = 'block';
+    return;
+  }
+  const payload = {
+    id: _ghiChuEditId || undefined,
+    ngay: _ghiChuDateFromInput(document.getElementById('ghiChuNgay').value),
+    tieuDe: tieuDe,
+    noiDung: document.getElementById('ghiChuNoiDung').value.trim(),
+    trangThai: document.getElementById('ghiChuTrangThai').value
+  };
+  const btn = document.getElementById('ghiChuSaveBtn');
+  btn.disabled = true; btn.textContent = 'Đang lưu...';
+  try {
+    const res = await ghiChuCall('ghiChu_save', payload);
+    if (!res.ok) throw new Error(res.msg || 'Lỗi không xác định');
+    closeGhiChuModal();
+    await loadGhiChu();
+  } catch (e) {
+    errBox.textContent = '⚠️ ' + e.message;
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Lưu';
+  }
+}
+
+async function removeGhiChu(id) {
+  if (!confirm('Xóa mục này? Không thể hoàn tác.')) return;
+  try {
+    const res = await ghiChuCall('ghiChu_delete', { id });
+    if (!res.ok) throw new Error(res.msg || 'Lỗi không xác định');
+    await loadGhiChu();
+  } catch (e) {
+    alert('⚠️ Không xóa được: ' + e.message);
   }
 }
 
@@ -879,7 +1086,9 @@ function renderDonHang() {
 
 /* ══════════ KHỞI ĐỘNG ══════════ */
 loadAll(false);
+loadGhiChu();
 setInterval(() => loadAll(true), 5 * 60 * 1000); // tự làm mới mỗi 5 phút
+setInterval(() => loadGhiChu(), 2 * 60 * 1000); // mục tùy chỉnh làm mới mỗi 2 phút
 </script>
 </body>
 </html>
