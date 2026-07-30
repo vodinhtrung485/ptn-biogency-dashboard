@@ -597,13 +597,45 @@ function _looksLikeTable(text) {
 function _renderTableFromPaste(text) {
   const lines = String(text || '').replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
   if (!lines.length) return '';
-  let html = '<table class="ghichu-mini-table">';
+  const table = document.createElement('table');
+  table.className = 'ghichu-mini-table';
   lines.forEach(line => {
-    const cells = line.split('\t');
-    html += '<tr>' + cells.map(c => `<td>${_esc(c)}</td>`).join('') + '</tr>';
+    const tr = document.createElement('tr');
+    line.split('\t').forEach(function(c) {
+      const td = document.createElement('td');
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
   });
-  html += '</table>';
-  return html;
+  _autoMergeCells(table);
+  return table.outerHTML;
+}
+
+// Excel/Google Sheets khi copy 1 ô đã merge thường xuất ra HTML thành 1 ô có
+// chữ + các ô trống theo sau (không giữ colspan gốc). Hàm này dò mỗi dòng:
+// nếu 1 ô có chữ và toàn bộ các ô còn lại phía sau đến hết dòng đều trống,
+// gộp chúng lại bằng colspan để trông giống hệt ô đã merge bên Excel
+// (áp dụng đúng cho các dòng tiêu đề/dòng ghi chú toàn dòng — không đụng tới
+// các ô trống nằm giữa dòng dữ liệu bình thường).
+function _autoMergeCells(table) {
+  const rows = Array.prototype.slice.call(table.rows);
+  if (!rows.length) return;
+  const maxCols = rows.reduce(function(m, r) { return Math.max(m, r.cells.length); }, 0);
+  rows.forEach(function(row) {
+    let cells = Array.prototype.slice.call(row.cells);
+    while (cells.length > 1 && cells[cells.length - 1].textContent.trim() === '') {
+      row.removeChild(cells[cells.length - 1]);
+      cells.pop();
+    }
+    if (!cells.length) return;
+    const used = cells.reduce(function(s, c) { return s + (parseInt(c.getAttribute('colspan')) || 1); }, 0);
+    if (used < maxCols) {
+      const last = cells[cells.length - 1];
+      const currentSpan = parseInt(last.getAttribute('colspan')) || 1;
+      last.setAttribute('colspan', currentSpan + (maxCols - used));
+    }
+  });
 }
 
 // Chỉ giữ lại các thẻ an toàn/cần thiết cho 1 bảng dữ liệu (bảng, đoạn văn,
@@ -636,7 +668,10 @@ function _sanitizePastedHtml(html) {
       }
     });
   })(tmp);
-  Array.prototype.slice.call(tmp.querySelectorAll('table')).forEach(function(t) { t.className = 'ghichu-mini-table'; });
+  Array.prototype.slice.call(tmp.querySelectorAll('table')).forEach(function(t) {
+    t.className = 'ghichu-mini-table';
+    _autoMergeCells(t); // gộp lại các ô merge trong Excel mà HTML dán không giữ colspan gốc
+  });
   return tmp.innerHTML.trim();
 }
 
