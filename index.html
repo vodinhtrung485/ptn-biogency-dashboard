@@ -102,6 +102,19 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:900px){.grid2{grid-template-columns:1fr}}
 
 .stale-note{font-size:11px;color:#F57F17;background:#FFF8E1;padding:4px 10px;border-radius:8px;margin-left:8px}
+
+/* MODAL XEM ĐƯỜNG CHUẨN */
+.dc-btn{display:inline-block;margin-top:10px;background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;
+  border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer}
+.dc-btn:hover{background:#DBEAFE}
+.dc-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;
+  align-items:center;justify-content:center;padding:16px}
+.dc-modal-overlay.open{display:flex}
+.dc-modal-box{background:#fff;border-radius:14px;padding:24px;width:min(700px,96vw);max-height:92vh;
+  overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.dc-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.dc-modal-head h3{margin:0;color:#1B2E7A;font-size:16px}
+.dc-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#6B7A99}
 </style>
 </head>
 <body>
@@ -196,6 +209,18 @@ table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     </div>
   </div>
 
+</div>
+
+<!-- MODAL XEM ĐƯỜNG CHUẨN (chỉ hiển thị) -->
+<div class="dc-modal-overlay" id="dcModalOverlay">
+  <div class="dc-modal-box">
+    <div class="dc-modal-head">
+      <h3 id="dcModalTitle">📈 Đường chuẩn</h3>
+      <button class="dc-modal-close" onclick="closeDcModal()">✕</button>
+    </div>
+    <div class="chart-wrap" style="height:320px"><canvas id="dcModalCanvas"></canvas></div>
+    <div id="dcModalMdlLoq" style="margin-top:14px;text-align:center;font-size:14px;color:#334155"></div>
+  </div>
 </div>
 
 <script>
@@ -631,21 +656,79 @@ function renderMoHinh() {
 }
 
 /* ══════════ RENDER: THỬ NGHIỆM PP MỚI ══════════ */
+let _dcModalChart = null;
+function _parseDuongChuan(r) {
+  const raw = r['Dữ liệu đường chuẩn (JSON)'] || '';
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    return d && d.computed ? d : null;
+  } catch(e) { return null; }
+}
+
 function renderThuNghiem() {
   const list = STATE.thunghiem;
   if (!list.length) { document.getElementById('tnWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>'; return; }
+
   let html = '';
-  list.forEach(r => {
+  list.forEach((r, i) => {
     const pct = num(r['Mức độ (%)'] || r['Mức độ']);
+    const dc = _parseDuongChuan(r);
+
+    const dcHtml = dc
+      ? `<button class="dc-btn" onclick="openDcModal(${i})">👁 Xem đường chuẩn</button>`
+      : `<div style="font-size:11.5px;color:#94A3B8;margin-top:8px">Chưa có dữ liệu đường chuẩn / MDL / LOQ</div>`;
+
     html += `<div class="pp-item">
       <div class="pp-head"><span class="pp-name">${r['Tên chỉ tiêu']||r['Chỉ tiêu']||''}</span>
       <span class="badge ${pct>=100?'badge-green':'badge-blue'}">${r['Tiến độ']||''} · ${pct}%</span></div>
       <div class="pp-method">${r['Tên phương pháp']||r['Phương pháp']||''}</div>
       <div class="pp-bar-bg"><div class="pp-bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
       <div class="pp-note">${r['Công việc đã thực hiện']||r['Công việc']||''}</div>
+      ${dcHtml}
     </div>`;
   });
   document.getElementById('tnWrap').innerHTML = html;
+}
+
+// Mở popup xem to hình đường chuẩn + MDL/LOQ của 1 chỉ tiêu (dùng Chart.js đã có sẵn trong dashboard)
+function openDcModal(i) {
+  const r = STATE.thunghiem[i];
+  const dc = r ? _parseDuongChuan(r) : null;
+  if (!dc) return;
+  const c = dc.computed;
+
+  document.getElementById('dcModalTitle').textContent = '📈 Đường chuẩn — ' + (r['Tên chỉ tiêu']||r['Chỉ tiêu']||'');
+  document.getElementById('dcModalMdlLoq').innerHTML =
+    (c.a!=null ? `<div style="margin-bottom:6px">y = ${c.a.toFixed(4)} + ${c.b.toFixed(4)}·x &nbsp; (R² = ${c.r2!=null?c.r2.toFixed(4):'—'})</div>` : '') +
+    `MDL = <b style="color:#1B2E7A">${c.mdl!=null?c.mdl.toFixed(4):'—'}</b> &nbsp;·&nbsp; LOQ = <b style="color:#1B2E7A">${c.loq!=null?c.loq.toFixed(4):'—'}</b>`;
+
+  document.getElementById('dcModalOverlay').classList.add('open');
+
+  if (_dcModalChart) { _dcModalChart.destroy(); _dcModalChart = null; }
+  if (dc.calibPoints && dc.calibPoints.length >= 2 && c.a != null) {
+    const pts = dc.calibPoints.map(p => ({x: parseFloat(p.x), y: parseFloat(p.y)})).filter(p => !isNaN(p.x) && !isNaN(p.y));
+    const xs = pts.map(p=>p.x);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    const linePts = [{x:xMin, y:c.a+c.b*xMin}, {x:xMax, y:c.a+c.b*xMax}];
+    _dcModalChart = new Chart(document.getElementById('dcModalCanvas'), {
+      type: 'scatter',
+      data: { datasets: [
+        { label:'Điểm chuẩn', data: pts, backgroundColor:'#1B2E7A', pointRadius:5 },
+        { label:'Đường hồi quy', data: linePts, type:'line', borderColor:'#2E9FD8', borderDash:[6,4], pointRadius:0, fill:false }
+      ]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{ x:{title:{display:true,text:'Nồng độ'}}, y:{title:{display:true,text:'Tín hiệu'}} }
+      }
+    });
+  }
+}
+
+function closeDcModal() {
+  document.getElementById('dcModalOverlay').classList.remove('open');
+  if (_dcModalChart) { _dcModalChart.destroy(); _dcModalChart = null; }
 }
 
 /* ══════════ KHỞI ĐỘNG ══════════ */
