@@ -76,6 +76,10 @@ table.data-table th{background:#F5F8FC;color:#5A7498;font-weight:700;text-align:
 table.data-table td{padding:10px 12px;border-bottom:1px solid #EEF2F7}
 table.data-table tr:hover td{background:#F9FBFD}
 table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+/* Mục tùy chỉnh: mỗi mục là 1 khối tách biệt rõ ràng, không lẫn vào mục kế bên */
+tr.ghichu-row td{padding:14px 12px;border-bottom:6px solid #EAF0F8}
+tr.ghichu-row:nth-child(odd) td{background:#FBFCFE}
+tr.ghichu-row:last-child td{border-bottom:1px solid #EEF2F7}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .badge-green{background:#E8F5E9;color:#2E7D32}
 .badge-yellow{background:#FFF8E1;color:#F57F17}
@@ -579,13 +583,15 @@ function renderGhiChu() {
     wrap.innerHTML = '<div class="empty-state">Chưa có mục nào — bấm "➕ Thêm mới" để bắt đầu.</div>';
     return;
   }
-  const list = _ghiChuData.slice().sort((a, b) => (b.capNhat || '').localeCompare(a.capNhat || ''));
+  // Giữ đúng thứ tự lúc thêm vào (mục thêm trước ở trên, thêm sau ở dưới) —
+  // KHÔNG sort lại theo ngày cập nhật, để sửa 1 mục không làm nó nhảy vị trí.
+  const list = _ghiChuData;
   let html = `<table class="data-table"><thead><tr>
     <th style="width:100px">Ngày</th><th>Tiêu đề</th><th>Nội dung</th>
     <th style="width:120px">Trạng thái</th><th style="width:110px">Thao tác</th>
   </tr></thead><tbody>`;
   list.forEach(r => {
-    html += `<tr>
+    html += `<tr class="ghichu-row">
       <td>${r.ngay || '—'}</td>
       <td><strong>${_esc(r.tieuDe) || '—'}</strong></td>
       <td>${_renderNoiDung(r.noiDung)}</td>
