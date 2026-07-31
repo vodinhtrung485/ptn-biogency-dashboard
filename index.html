@@ -519,6 +519,7 @@ async function loadAll(forceSpinner) {
 /* ══════════ MỤC TÙY CHỈNH (tự thêm/sửa/xóa qua Web App) ══════════ */
 let _ghiChuData = [];
 let _ghiChuEditId = null;
+const GHICHU_CACHE_KEY = 'ptn_dashboard_ghichu_cache_v1';
 
 // Dùng Content-Type text/plain để trình duyệt KHÔNG gửi preflight OPTIONS
 // (Apps Script Web App không xử lý OPTIONS) — đây là cách chuẩn để POST JSON
@@ -533,19 +534,35 @@ async function ghiChuCall(action, payload) {
   return res.json();
 }
 
+// Hiện ngay ghi chú đã lưu lần trước (nếu có) trong lúc chờ Apps Script phản hồi —
+// cùng kiểu stale-while-revalidate như showCachedFirst() dùng cho dữ liệu chính.
+function _showGhiChuCachedFirst() {
+  try {
+    const cached = localStorage.getItem(GHICHU_CACHE_KEY);
+    if (!cached) return false;
+    _ghiChuData = JSON.parse(cached);
+    renderGhiChu();
+    return true;
+  } catch (e) { return false; }
+}
+
 async function loadGhiChu() {
   const wrap = document.getElementById('ghiChuWrap');
   const errBox = document.getElementById('ghiChuErr');
   errBox.style.display = 'none';
+  const hadCache = _showGhiChuCachedFirst();
   try {
     const res = await ghiChuCall('ghiChu_get');
     if (!res.ok) throw new Error(res.msg || 'Lỗi không xác định');
     _ghiChuData = res.data || [];
     renderGhiChu();
+    try { localStorage.setItem(GHICHU_CACHE_KEY, JSON.stringify(_ghiChuData)); } catch (e) {}
   } catch (e) {
-    wrap.innerHTML = '';
-    errBox.textContent = '⚠️ Không tải được dữ liệu: ' + e.message;
-    errBox.style.display = 'block';
+    if (!hadCache) {
+      wrap.innerHTML = '';
+      errBox.textContent = '⚠️ Không tải được dữ liệu: ' + e.message;
+      errBox.style.display = 'block';
+    }
   }
 }
 
