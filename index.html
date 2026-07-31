@@ -264,6 +264,7 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
     </div>
     <div class="chart-wrap" style="height:320px"><canvas id="dcModalCanvas"></canvas></div>
     <div id="dcModalMdlLoq" style="margin-top:14px;text-align:center;font-size:14px;color:#334155"></div>
+    <div id="dcModalDetailTables" style="margin-top:14px"></div>
   </div>
 </div>
 
@@ -1150,9 +1151,52 @@ function openDcModal(i) {
   const c = dc.computed;
 
   document.getElementById('dcModalTitle').textContent = '📈 Đường chuẩn — ' + (r['Tên chỉ tiêu']||r['Chỉ tiêu']||'');
-  document.getElementById('dcModalMdlLoq').innerHTML =
+  let mdlLoqHtml =
     (c.a!=null ? `<div style="margin-bottom:6px">y = ${c.a.toFixed(4)} + ${c.b.toFixed(4)}·x &nbsp; (R² = ${c.r2!=null?c.r2.toFixed(4):'—'})</div>` : '') +
     `MDL = <b style="color:#1B2E7A">${c.mdl!=null?c.mdl.toFixed(4):'—'}</b> &nbsp;·&nbsp; LOQ = <b style="color:#1B2E7A">${c.loq!=null?c.loq.toFixed(4):'—'}</b>`;
+  if (c.repeat) {
+    const okRp = c.repeat.rsd != null && c.repeat.rsd <= 15;
+    mdlLoqHtml += `<div style="margin-top:8px">🔁 Độ lặp lại: %RSD = <b style="color:${okRp?'#16A34A':'#EF4444'}">${c.repeat.rsd!=null?c.repeat.rsd.toFixed(2)+'%':'—'}</b> (n=${c.repeat.n})</div>`;
+  }
+  if (c.recovery) {
+    const okRc = c.recovery.mean >= 80 && c.recovery.mean <= 120;
+    mdlLoqHtml += `<div style="margin-top:6px">💧 Độ thu hồi: %Recovery TB = <b style="color:${okRc?'#16A34A':'#EF4444'}">${c.recovery.mean.toFixed(2)}%</b> &nbsp;(Min–Max ${c.recovery.min.toFixed(2)}%–${c.recovery.max.toFixed(2)}%, n=${c.recovery.n})</div>`;
+  }
+  document.getElementById('dcModalMdlLoq').innerHTML = mdlLoqHtml;
+
+  // Bảng chi tiết đầy đủ số liệu từng lần lặp lại / từng mức spike
+  let detailHtml = '';
+  const repeatVals = (dc.repeatValues || []).filter(v => v !== '' && v != null && !isNaN(parseFloat(v)));
+  if (repeatVals.length) {
+    detailHtml += `<div style="margin-bottom:14px"><div style="font-weight:700;color:#475569;font-size:12.5px;margin-bottom:6px">🔁 Độ lặp lại — ${repeatVals.length} giá trị đo</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+      ${repeatVals.map((v,idx) => `<th style="border:1px solid #E2E8F0;padding:5px 6px;background:#F8FAFC;font-weight:600">Lần ${idx+1}</th>`).join('')}
+      </tr></thead><tbody><tr>
+      ${repeatVals.map(v => `<td style="border:1px solid #E2E8F0;padding:5px 6px;text-align:center">${parseFloat(v).toFixed(4)}</td>`).join('')}
+      </tr></tbody></table></div>`;
+  }
+  const recoveryLevels = (dc.recoveryLevels || []).filter(lv => lv && lv.spike !== '' && lv.spike != null && !isNaN(parseFloat(lv.spike)) && (lv.foundValues||[]).some(f => f !== '' && f != null && !isNaN(parseFloat(f))));
+  if (recoveryLevels.length) {
+    detailHtml += `<div><div style="font-weight:700;color:#475569;font-size:12.5px;margin-bottom:8px">💧 Độ thu hồi — ${recoveryLevels.length} mức nồng độ spike</div>`;
+    recoveryLevels.forEach((lv, li) => {
+      const original = parseFloat(lv.original) || 0, spike = parseFloat(lv.spike);
+      const founds = (lv.foundValues||[]).filter(f => f !== '' && f != null && !isNaN(parseFloat(f))).map(f => parseFloat(f));
+      detailHtml += `<div style="margin-bottom:12px">
+        <div style="font-size:12px;color:#475569;margin-bottom:5px">Mức ${li+1}: Nồng độ mẫu thực = <b>${original.toFixed(4)}</b> &nbsp;·&nbsp; Nồng độ Spike = <b>${spike.toFixed(4)}</b></div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>
+        ${founds.map((f,idx) => `<th style="border:1px solid #E2E8F0;padding:5px 6px;background:#F8FAFC;font-weight:600">Lần ${idx+1}</th>`).join('')}
+        </tr></thead><tbody>
+        <tr>${founds.map(f => `<td style="border:1px solid #E2E8F0;padding:5px 6px;text-align:center">${f.toFixed(4)}</td>`).join('')}</tr>
+        <tr>${founds.map(f => {
+          const rec = (f - original) / spike * 100;
+          const ok = rec >= 80 && rec <= 120;
+          return `<td style="border:1px solid #E2E8F0;padding:5px 6px;text-align:center;font-weight:700;color:${ok?'#16A34A':'#EF4444'}">${rec.toFixed(2)}%</td>`;
+        }).join('')}</tr>
+        </tbody></table></div>`;
+    });
+    detailHtml += `</div>`;
+  }
+  document.getElementById('dcModalDetailTables').innerHTML = detailHtml;
 
   document.getElementById('dcModalOverlay').classList.add('open');
 
