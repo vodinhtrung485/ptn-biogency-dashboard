@@ -636,12 +636,24 @@ const GHICHU_CACHE_KEY = 'ptn_dashboard_ghichu_cache_v1';
 // (Apps Script Web App không xử lý OPTIONS) — đây là cách chuẩn để POST JSON
 // từ 1 domain khác (GitHub Pages) sang Apps Script.
 async function ghiChuCall(action, payload) {
-  const res = await fetch(WEBAPP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, payload: payload || {} })
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  let res;
+  try {
+    res = await fetch(WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, payload: payload || {} })
+    });
+  } catch (e) {
+    // "Failed to fetch" = trình duyệt không gọi tới được Apps Script (không phải
+    // lỗi dữ liệu). Hầu như luôn do quyền truy cập của bản Deploy Web App.
+    throw new Error(
+      'Không kết nối được tới Apps Script. Kiểm tra: Deploy → Manage deployments → ' +
+      'bản đang dùng → Who has access phải là "Anyone" (không phải "Anyone with Google account"), ' +
+      'và Execute as = Me. Nếu vừa sửa code thì chọn Version: New version rồi Deploy lại ' +
+      '(đừng tạo deployment mới vì sẽ đổi link).'
+    );
+  }
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' từ Apps Script');
   return res.json();
 }
 
