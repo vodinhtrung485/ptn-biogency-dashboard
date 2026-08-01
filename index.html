@@ -118,15 +118,13 @@ table.kh-table tr.kh-total-row td.kh-nhom{font-size:14.5px;font-weight:800;color
 table.kh-table tr.kh-total-row .kh-cell{color:#8A5A00;font-weight:800;font-size:16px}
 
 /* Mục tùy chỉnh: mỗi mục là 1 khối tách biệt rõ ràng, không lẫn vào mục kế bên */
-tr.ghichu-row td{padding:14px 12px;border-bottom:6px solid #EAF0F8}
-tr.ghichu-row:nth-child(odd) td{background:#FBFCFE}
-tr.ghichu-row:last-child td{border-bottom:1px solid #EEF2F7}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .badge-green{background:#E8F5E9;color:#2E7D32}
 .badge-yellow{background:#FFF8E1;color:#F57F17}
 .badge-red{background:#FEF2F2;color:#B91C1C}
 .badge-gray{background:#F1F5F9;color:#64748B}
 .badge-blue{background:#E3F2FD;color:#1565C0}
+.badge-purple{background:#F3E8FF;color:#7C3AED}
 
 /* PROGRESS */
 .pp-item{border:1.5px solid #EDF1F7;border-radius:12px;padding:16px 18px;margin-bottom:12px}
@@ -162,9 +160,40 @@ tr.ghichu-row:last-child td{border-bottom:1px solid #EEF2F7}
 .dc-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#6B7A99}
 
 /* BẢNG EXCEL DÁN VÀO MỤC TÙY CHỈNH */
-table.ghichu-mini-table{border-collapse:collapse;font-size:12px;margin:2px 0;background:#fff}
-table.ghichu-mini-table td,table.ghichu-mini-table th{border:1px solid #D9E1EC;padding:5px 9px;white-space:pre-wrap}
-table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:#F5F8FC;font-weight:700;color:#334155}
+/* ── Tab "Khác": mỗi mục là 1 thẻ riêng, nội dung trải hết chiều ngang ── */
+.gc-card{background:#fff;border:1px solid #E3EAF5;border-left:5px solid #1B3A6B;border-radius:12px;
+  box-shadow:0 2px 10px rgba(27,58,107,.07);margin-bottom:18px;overflow:hidden}
+.gc-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 20px;
+  background:linear-gradient(90deg,#F4F8FF,#FBFCFE);border-bottom:1px solid #E8EEF7}
+.gc-date{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#5A7498;
+  background:#EAF1FB;border:1px solid #D6E3F5;border-radius:20px;padding:4px 12px;white-space:nowrap}
+.gc-title{margin:0;font-size:16px;font-weight:800;color:#0D1B5E;line-height:1.35;flex:1;min-width:220px}
+.gc-actions{display:flex;gap:6px;margin-left:auto}
+.gc-btn{border:1.5px solid #D6E0EE;background:#fff;border-radius:7px;padding:5px 12px;
+  font-size:12px;font-weight:700;cursor:pointer;color:#1D4ED8}
+.gc-btn:hover{background:#F1F6FF;border-color:#93B4E4}
+.gc-btn.del{color:#B91C1C}
+.gc-btn.del:hover{background:#FEF2F2;border-color:#F0AFAF}
+.gc-body{padding:16px 20px;font-size:13.5px;line-height:1.6;color:#243B55;overflow-x:auto}
+.gc-body>div{white-space:pre-wrap}
+
+/* Bảng dán từ Excel bên trong 1 mục — đọc rõ, hợp trình chiếu */
+table.ghichu-mini-table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;
+  margin:4px 0;background:#fff;border:1px solid #DCE5F1;border-radius:10px;overflow:hidden}
+table.ghichu-mini-table td,table.ghichu-mini-table th{border-right:1px solid #E8EEF7;
+  border-bottom:1px solid #E8EEF7;padding:10px 14px;white-space:pre-wrap;vertical-align:top;line-height:1.55}
+table.ghichu-mini-table td:last-child,table.ghichu-mini-table th:last-child{border-right:none}
+table.ghichu-mini-table tr:last-child td{border-bottom:none}
+table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{
+  background:linear-gradient(90deg,#0D1B5E,#1B2E7A 60%,#0D4A7A);color:#fff;font-weight:700;
+  font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;white-space:normal;vertical-align:middle}
+table.ghichu-mini-table tr:nth-child(even) td{background:#FAFCFF}
+table.ghichu-mini-table tr:first-child:nth-child(even) td{background:#1B2E7A}
+table.ghichu-mini-table tbody tr:hover td{background:#EFF5FF}
+table.ghichu-mini-table tr:first-child:hover td{background:#1B2E7A}
+/* Dòng chú thích cuối bảng (1 ô trải hết chiều ngang) */
+table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font-weight:700;
+  color:#8A5A00;text-align:center;letter-spacing:.3px}
 .ghichu-editable{width:100%;min-height:110px;max-height:360px;overflow:auto;padding:9px 12px;
   border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px;white-space:pre-wrap;background:#fff}
 .ghichu-editable:focus{outline:2px solid #BFDBFE}
@@ -384,6 +413,7 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
         <label style="font-size:11.5px;font-weight:700;color:#6B7A99;display:block;margin-bottom:5px">Trạng thái</label>
         <select id="ghiChuTrangThai" style="width:100%;padding:9px 12px;border:1.5px solid #DDE6F0;border-radius:9px;font-size:13px">
           <option value="Đang theo dõi">Đang theo dõi</option>
+          <option value="Kế hoạch">Kế hoạch</option>
           <option value="Cần xử lý">Cần xử lý</option>
           <option value="Hoàn thành">Hoàn thành</option>
           <option value="Lưu ý">Lưu ý</option>
@@ -651,6 +681,7 @@ function _ghiChuBadgeClass(tt) {
   if (tt === 'Hoàn thành') return 'badge-green';
   if (tt === 'Cần xử lý') return 'badge-red';
   if (tt === 'Lưu ý') return 'badge-yellow';
+  if (tt === 'Kế hoạch') return 'badge-purple';
   return 'badge-blue';
 }
 
@@ -663,23 +694,22 @@ function renderGhiChu() {
   // Giữ đúng thứ tự lúc thêm vào (mục thêm trước ở trên, thêm sau ở dưới) —
   // KHÔNG sort lại theo ngày cập nhật, để sửa 1 mục không làm nó nhảy vị trí.
   const list = _ghiChuData;
-  let html = `<table class="data-table"><thead><tr>
-    <th style="width:100px">Ngày</th><th>Tiêu đề</th><th>Nội dung</th>
-    <th style="width:120px">Trạng thái</th><th style="width:110px">Thao tác</th>
-  </tr></thead><tbody>`;
+  let html = '';
   list.forEach(r => {
-    html += `<tr class="ghichu-row">
-      <td>${r.ngay || '—'}</td>
-      <td><strong>${_esc(r.tieuDe) || '—'}</strong></td>
-      <td>${_renderNoiDung(r.noiDung)}</td>
-      <td><span class="badge ${_ghiChuBadgeClass(r.trangThai)}">${r.trangThai || '—'}</span></td>
-      <td>
-        <button onclick="openGhiChuEdit('${r.id}')" style="background:none;border:none;color:#1D4ED8;cursor:pointer;font-size:12px;font-weight:700;margin-right:8px">Sửa</button>
-        <button onclick="removeGhiChu('${r.id}')" style="background:none;border:none;color:#B91C1C;cursor:pointer;font-size:12px;font-weight:700">Xóa</button>
-      </td>
-    </tr>`;
+    const noiDung = _renderNoiDung(r.noiDung);
+    html += `<article class="gc-card">
+      <div class="gc-head">
+        <span class="gc-date">📅 ${r.ngay || '—'}</span>
+        <h3 class="gc-title">${_esc(r.tieuDe) || '—'}</h3>
+        <span class="badge ${_ghiChuBadgeClass(r.trangThai)}">${r.trangThai || '—'}</span>
+        <div class="gc-actions">
+          <button class="gc-btn" onclick="openGhiChuEdit('${r.id}')">✏️ Sửa</button>
+          <button class="gc-btn del" onclick="removeGhiChu('${r.id}')">🗑 Xóa</button>
+        </div>
+      </div>
+      <div class="gc-body">${noiDung || '<span style="color:#94A3B8">Chưa có nội dung</span>'}</div>
+    </article>`;
   });
-  html += '</tbody></table>';
   wrap.innerHTML = html;
 }
 
@@ -780,6 +810,10 @@ function _sanitizePastedHtml(html) {
 function _renderNoiDung(text) {
   if (!text) return '';
   if (/<table/i.test(text)) return text; // đã là HTML bảng được lưu sẵn, an toàn vì tự sinh ra
+  // Nội dung có thẻ HTML (vd <div>, <p>, <br>) → lọc sạch rồi render, đừng hiện thẻ thô
+  if (/<\s*\/?\s*(div|p|br|b|strong|i|em|u|span|ul|ol|li)\b/i.test(text)) {
+    return _sanitizePastedHtml(text);
+  }
   if (_looksLikeTable(text)) return _renderTableFromPaste(text);
   return `<div style="white-space:pre-wrap">${_esc(text)}</div>`;
 }
