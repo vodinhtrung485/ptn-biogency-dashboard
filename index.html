@@ -1081,14 +1081,36 @@ function renderHoaChat() {
 }
 
 /* ══════════ RENDER: MÔ HÌNH THỬ NGHIỆM ══════════ */
+// Chuẩn hóa ô ngày từ TSV về dd/mm/yyyy (bỏ phần giờ nếu có)
+function _fmtDateCell(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '—';
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) {
+    const p = n => n.length < 2 ? '0'+n : n;
+    return p(m[1]) + '/' + p(m[2]) + '/' + m[3];
+  }
+  const m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m2) {
+    const p = n => n.length < 2 ? '0'+n : n;
+    return p(m2[3]) + '/' + p(m2[2]) + '/' + m2[1];
+  }
+  return s;
+}
+
 function renderMoHinh() {
   const list = STATE.mohinh;
   if (!list.length) { document.getElementById('mhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>'; return; }
-  let html = `<table class="data-table"><thead><tr><th>Tên mô hình</th><th>Công việc thực hiện</th><th>Tình trạng</th></tr></thead><tbody>`;
+  let html = `<table class="data-table"><thead><tr><th>Tên mô hình</th><th>Công việc thực hiện</th>` +
+    `<th class="num" style="width:110px">Ngày bắt đầu</th><th class="num" style="width:110px">Ngày kết thúc</th>` +
+    `<th style="width:150px">Người phụ trách chính</th><th style="width:130px">Tình trạng</th></tr></thead><tbody>`;
   list.forEach(r => {
     const tt = r['Tình trạng']||'';
     const cls = tt==='Đang chạy' ? 'badge-blue' : tt==='Hoàn thành' ? 'badge-green' : tt==='Lỗi/Sự cố' ? 'badge-red' : 'badge-gray';
     html += `<tr><td><strong>${r['Tên mô hình']||''}</strong></td><td>${r['Công việc thực hiện']||''}</td>
+      <td class="num">${_fmtDateCell(r['Ngày bắt đầu'])}</td>
+      <td class="num">${_fmtDateCell(r['Ngày kết thúc'])}</td>
+      <td style="font-weight:600;color:#0E7490">${r['Người phụ trách chính']||'—'}</td>
       <td><span class="badge ${cls}">${tt||'—'}</span></td></tr>`;
   });
   html += '</tbody></table>';
