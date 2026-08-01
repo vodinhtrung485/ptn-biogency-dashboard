@@ -163,8 +163,8 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
   <button class="tab-btn" data-tab="tab-mohinh" onclick="switchTab('tab-mohinh')">⚙️ Mô hình thử nghiệm</button>
   <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
   <button class="tab-btn" data-tab="tab-donhang" onclick="switchTab('tab-donhang')">📦 Đơn hàng</button>
-  <button class="tab-btn" data-tab="tab-ghichu" onclick="switchTab('tab-ghichu')">📌 Mục tùy chỉnh</button>
   <button class="tab-btn" data-tab="tab-dongia" onclick="switchTab('tab-dongia')">💲 Đơn giá</button>
+  <button class="tab-btn" data-tab="tab-ghichu" onclick="switchTab('tab-ghichu')">📌 Khác</button>
 </nav>
 
 <div class="container">
@@ -259,7 +259,7 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
   <div class="tab-page" id="tab-ghichu">
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        <div class="card-title" style="margin-bottom:0">📌 Mục tùy chỉnh</div>
+        <div class="card-title" style="margin-bottom:0">📌 Khác</div>
         <button class="dc-btn" style="margin-left:auto" onclick="openGhiChuAdd()">➕ Thêm mới</button>
       </div>
       <div id="ghiChuErr" style="display:none;background:#FEF2F2;color:#B91C1C;padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:12px"></div>
@@ -357,9 +357,7 @@ const URLS = {
   mohinh:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=264119043&single=true&output=tsv',
   thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
   donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
-  // Sheet "💲 Đơn giá phân tích mẫu" — Trung cần "Xuất bản lên web" (TSV) tab này trong Google Sheets
-  // rồi dán link publish vào đây (giữ đúng dạng ...&single=true&output=tsv). Để trống thì tab sẽ hiện rỗng.
-  dongia:    '',
+  dongia:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1459909474&single=true&output=tsv',
 };
 const DONGIA_CACHE_KEY = 'ptn_dashboard_dongia_cache_v1';
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
