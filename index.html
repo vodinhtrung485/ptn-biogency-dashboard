@@ -224,13 +224,21 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
 
   <!-- ══ TAB: MÔ HÌNH THỬ NGHIỆM ══ -->
   <div class="tab-page" id="tab-mohinh">
+    <div class="filter-bar">
+      <label>Tháng</label>
+      <select class="period-sel" id="mhPeriodSel"></select>
+    </div>
     <div class="card">
-      <div class="card-title">⚙️ Mô hình thử nghiệm đang triển khai</div>
+      <div class="card-title" id="mhCardTitle">⚙️ Mô hình thử nghiệm</div>
       <div id="mhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
     <div class="card" style="border:1.5px dashed #B7CDEA;background:#F7FAFF">
       <div class="card-title">🗓️ Kế hoạch mô hình tháng tiếp theo</div>
       <div id="khmhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📜 Lịch sử mô hình</div>
+      <div id="mhHistoryWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
   </div>
 
@@ -406,7 +414,7 @@ function tinhKeHoachThangTong(thang) {
   }, { khLan: 0, khMau: 0, khCP: 0 });
 }
 
-let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], donhang: [], khmohinh: [], mode: 'thang', period: null, dhThang: null };
+let STATE = { rows: [], thietbi: [], hoachat: [], mohinh: [], thunghiem: [], donhang: [], khmohinh: [], mode: 'thang', period: null, dhThang: null, mhThang: null, mhNam: null };
 let trendChartObj = null, cpChartObj = null;
 
 /* ══════════ HELPERS ══════════ */
@@ -504,6 +512,7 @@ function applyState(processed, timestamp, stale) {
   renderOverview();
   renderThietBi();
   renderHoaChat();
+  buildMhPeriodSelector();
   renderMoHinh();
   renderKHMH();
   renderThuNghiem();
@@ -1098,9 +1107,36 @@ function _fmtDateCell(v) {
   return s;
 }
 
-function renderMoHinh() {
-  const list = STATE.mohinh;
-  if (!list.length) { document.getElementById('mhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>'; return; }
+// Parse ô ngày → {y, m, d} hoặc null
+function _parseMhDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return { y: +m[3], m: +m[2], d: +m[1] };
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  return null;
+}
+// Đổi thành số so sánh được: yyyymm
+function _ym(o) { return o ? o.y * 100 + o.m : null; }
+
+// Phân loại 1 mô hình so với tháng đang chọn (nam = năm dữ liệu)
+//  'current' = khoảng thời gian làm CÓ giao với tháng đang chọn
+//  'history' = đã kết thúc TRƯỚC tháng đang chọn
+//  'future'  = mới bắt đầu SAU tháng đang chọn → ẩn
+function _mhClassify(r, targetYM) {
+  const bd = _ym(_parseMhDate(r['Ngày bắt đầu']));
+  const kt = _ym(_parseMhDate(r['Ngày kết thúc']));
+  if (bd === null && kt === null) return 'current'; // chưa điền ngày → luôn hiện
+  const start = bd !== null ? bd : kt;
+  const end   = kt !== null ? kt : bd;
+  if (start > targetYM) return 'future';
+  if (end   < targetYM) return 'history';
+  return 'current';
+}
+
+function _mhBuildTable(list, emptyMsg) {
+  if (!list.length) return `<div class="empty-state">${emptyMsg}</div>`;
   let html = `<table class="data-table"><thead><tr><th>Tên mô hình</th><th>Công việc thực hiện</th>` +
     `<th class="num" style="width:110px">Ngày bắt đầu</th><th class="num" style="width:110px">Ngày kết thúc</th>` +
     `<th style="width:150px">Người phụ trách chính</th><th style="width:130px">Tình trạng</th></tr></thead><tbody>`;
@@ -1113,8 +1149,70 @@ function renderMoHinh() {
       <td style="font-weight:600;color:#0E7490">${r['Người phụ trách chính']||'—'}</td>
       <td><span class="badge ${cls}">${tt||'—'}</span></td></tr>`;
   });
-  html += '</tbody></table>';
-  document.getElementById('mhTableWrap').innerHTML = html;
+  return html + '</tbody></table>';
+}
+
+function buildMhPeriodSelector() {
+  const sel = document.getElementById('mhPeriodSel');
+  const prevVal = STATE.mhThang;
+  sel.innerHTML = '';
+  for (let m = 1; m <= 12; m++) {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = 'Tháng ' + m;
+    sel.appendChild(o);
+  }
+  // Mặc định: tháng mới nhất có dữ liệu test mẫu, nếu không có thì tháng hiện tại
+  const monthsWithData = [...new Set(STATE.rows.map(r => r.thang))].filter(m => !isNaN(m)).sort((a,b)=>a-b);
+  const fallback = monthsWithData.length ? monthsWithData[monthsWithData.length-1] : (new Date().getMonth()+1);
+  sel.value = prevVal || fallback;
+  STATE.mhThang = parseInt(sel.value);
+
+  // Năm: lấy từ ngày của các mô hình (năm xuất hiện nhiều nhất), fallback năm hiện tại
+  const yearCount = {};
+  STATE.mohinh.forEach(r => {
+    ['Ngày bắt đầu','Ngày kết thúc'].forEach(k => {
+      const o = _parseMhDate(r[k]);
+      if (o) yearCount[o.y] = (yearCount[o.y]||0) + 1;
+    });
+  });
+  const years = Object.keys(yearCount).sort((a,b) => yearCount[b]-yearCount[a]);
+  STATE.mhNam = years.length ? parseInt(years[0]) : new Date().getFullYear();
+}
+
+document.getElementById('mhPeriodSel').addEventListener('change', e => {
+  STATE.mhThang = parseInt(e.target.value);
+  renderMoHinh();
+});
+
+function renderMoHinh() {
+  const list = STATE.mohinh;
+  const wrap = document.getElementById('mhTableWrap');
+  const hWrap = document.getElementById('mhHistoryWrap');
+  const thang = STATE.mhThang || (new Date().getMonth()+1);
+  const nam = STATE.mhNam || new Date().getFullYear();
+  const targetYM = nam * 100 + thang;
+
+  document.getElementById('mhCardTitle').textContent = '⚙️ Mô hình trong Tháng ' + thang;
+
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
+    hWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
+    return;
+  }
+
+  const current = [], history = [];
+  list.forEach(r => {
+    const k = _mhClassify(r, targetYM);
+    if (k === 'current') current.push(r);
+    else if (k === 'history') history.push(r);
+    // 'future' → ẩn hoàn toàn
+  });
+
+  // Lịch sử: mô hình kết thúc gần nhất nằm trên
+  history.sort((a,b) => (_ym(_parseMhDate(b['Ngày kết thúc'])) || 0) - (_ym(_parseMhDate(a['Ngày kết thúc'])) || 0));
+
+  wrap.innerHTML  = _mhBuildTable(current, 'Không có mô hình nào trong Tháng ' + thang);
+  hWrap.innerHTML = _mhBuildTable(history, 'Chưa có mô hình nào đã hoàn thành trước Tháng ' + thang);
 }
 
 /* ══════════ RENDER: KẾ HOẠCH MÔ HÌNH THÁNG TIẾP THEO ══════════ */
