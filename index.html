@@ -76,6 +76,19 @@ table.data-table th{background:#F5F8FC;color:#5A7498;font-weight:700;text-align:
 table.data-table td{padding:10px 12px;border-bottom:1px solid #EEF2F7}
 table.data-table tr:hover td{background:#F9FBFD}
 table.data-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* Bảng Đơn giá phân tích mẫu — dùng để chiếu lên báo cáo, cần to rõ, tương phản tốt */
+table.dg-view-table{width:100%;border-collapse:collapse;font-size:15px;border:1.5px solid #D8E2F0;border-radius:10px;overflow:hidden}
+.dg-view-table thead tr{background:linear-gradient(90deg,#0D1B5E,#1B2E7A 55%,#0D4A7A)}
+.dg-view-table th{padding:14px 16px;text-align:left;color:#fff;font-weight:700;font-size:14px;border-right:1px solid rgba(255,255,255,.18)}
+.dg-view-table th:last-child{border-right:none}
+.dg-view-table th.num{text-align:right}
+.dg-view-table td{padding:12px 16px;border-bottom:1px solid #EEF2F7;border-right:1px solid #F3F6FA;color:#1E293B}
+.dg-view-table td:last-child{border-right:none}
+.dg-view-table td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:#1B2E7A}
+.dg-view-table tbody tr:nth-child(even) td{background:#F8FAFF}
+.dg-view-table tbody tr:hover td{background:#EEF4FF}
+.dg-view-table tr.dg-total-row td{background:#FFF7E6!important;font-weight:800;color:#8A5A00;border-top:2px solid #F0C766;font-size:15.5px}
 /* Mục tùy chỉnh: mỗi mục là 1 khối tách biệt rõ ràng, không lẫn vào mục kế bên */
 tr.ghichu-row td{padding:14px 12px;border-bottom:6px solid #EAF0F8}
 tr.ghichu-row:nth-child(odd) td{background:#FBFCFE}
@@ -151,6 +164,7 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
   <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
   <button class="tab-btn" data-tab="tab-donhang" onclick="switchTab('tab-donhang')">📦 Đơn hàng</button>
   <button class="tab-btn" data-tab="tab-ghichu" onclick="switchTab('tab-ghichu')">📌 Mục tùy chỉnh</button>
+  <button class="tab-btn" data-tab="tab-dongia" onclick="switchTab('tab-dongia')">💲 Đơn giá</button>
 </nav>
 
 <div class="container">
@@ -253,6 +267,15 @@ table.ghichu-mini-table tr:first-child td,table.ghichu-mini-table th{background:
     </div>
   </div>
 
+  <!-- ══ TAB: ĐƠN GIÁ PHÂN TÍCH MẪU (chỉ xem — sửa trong app) ══ -->
+  <div class="tab-page" id="tab-dongia">
+    <div class="card">
+      <div class="card-title">💲 Đơn giá phân tích mẫu</div>
+      <div style="font-size:11.5px;color:#94A3B8;margin:-6px 0 12px">Chỉ xem — muốn sửa/thêm hàng, cột thì vào app.</div>
+      <div id="dongiaWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODAL XEM ĐƯỜNG CHUẨN (chỉ hiển thị) -->
@@ -334,7 +357,11 @@ const URLS = {
   mohinh:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=264119043&single=true&output=tsv',
   thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
   donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
+  // Sheet "💲 Đơn giá phân tích mẫu" — Trung cần "Xuất bản lên web" (TSV) tab này trong Google Sheets
+  // rồi dán link publish vào đây (giữ đúng dạng ...&single=true&output=tsv). Để trống thì tab sẽ hiện rỗng.
+  dongia:    '',
 };
+const DONGIA_CACHE_KEY = 'ptn_dashboard_dongia_cache_v1';
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
 
 // Link Web App (Apps Script) dùng riêng cho mục "Mục tùy chỉnh" — cho phép
@@ -1283,11 +1310,56 @@ function renderDonHang() {
   document.getElementById('dhTableWrap').innerHTML = html;
 }
 
+/* ══════════ ĐƠN GIÁ PHÂN TÍCH MẪU (chỉ xem — sửa trong app) ══════════ */
+function renderDonGia(rows) {
+  const wrap = document.getElementById('dongiaWrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu — nhập bảng đơn giá trong app, hoặc kiểm tra lại link publish (URLS.dongia).</div>';
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+
+  // Cột nào đa số giá trị là số (có thể có dấu . , ) thì căn phải cho dễ so sánh giá tiền
+  const isNumCol = headers.map(h => {
+    const vals = rows.map(r => (r[h] || '').trim()).filter(v => v !== '');
+    if (!vals.length) return false;
+    const numeric = vals.filter(v => /^[\d.,]+$/.test(v)).length;
+    return numeric / vals.length > 0.6;
+  });
+
+  let html = '<table class="dg-view-table"><thead><tr>' +
+    headers.map((h, i) => `<th class="${isNumCol[i] ? 'num' : ''}">${h}</th>`).join('') +
+    '</tr></thead><tbody>';
+  rows.forEach(r => {
+    const firstCell = (r[headers[0]] || '').toLowerCase();
+    const isTotal = firstCell.includes('tổng') || firstCell.includes('cộng');
+    html += `<tr class="${isTotal ? 'dg-total-row' : ''}">` +
+      headers.map((h, i) => `<td class="${isNumCol[i] ? 'num' : ''}">${r[h] || ''}</td>`).join('') +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+async function loadDonGia() {
+  try {
+    const cached = localStorage.getItem(DONGIA_CACHE_KEY);
+    if (cached) renderDonGia(JSON.parse(cached));
+  } catch (e) {}
+  try {
+    const rows = await fetchTSV(URLS.dongia);
+    renderDonGia(rows);
+    try { localStorage.setItem(DONGIA_CACHE_KEY, JSON.stringify(rows)); } catch (e) {}
+  } catch (e) { console.error(e); }
+}
+
 /* ══════════ KHỞI ĐỘNG ══════════ */
 loadAll(false);
 loadGhiChu();
+loadDonGia();
 setInterval(() => loadAll(true), 5 * 60 * 1000); // tự làm mới mỗi 5 phút
 setInterval(() => loadGhiChu(), 2 * 60 * 1000); // mục tùy chỉnh làm mới mỗi 2 phút
+setInterval(() => loadDonGia(), 5 * 60 * 1000); // đơn giá làm mới mỗi 5 phút
 </script>
 </body>
 </html>
