@@ -327,8 +327,18 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
       <div id="cpTbWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
     <div class="card">
-      <div class="card-title" style="margin-bottom:2px">🧪 Hóa Chất / Thuốc Thử</div>
-      <div style="font-size:11.5px;color:#94A3B8;margin-bottom:8px">Chi tiết từng lần nhập</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">🧪 Hóa Chất / Thuốc Thử</div>
+          <div style="font-size:11.5px;color:#94A3B8">Chi tiết từng lần nhập</div>
+        </div>
+        <select class="period-sel" id="cpLoaiHcSel" style="margin-left:auto">
+          <option value="">Tất cả loại</option>
+          <option value="hach">🧫 HACH</option>
+          <option value="ppmoi">🧪 PP mới</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px"></div>
       <div id="cpHcWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
   </div>
@@ -1450,6 +1460,19 @@ function _cpBadge(dm) {
   return '<span style="font-size:11px;color:#94A3B8">' + (dm || '—') + '</span>';
 }
 
+// Phân loại hóa chất: HACH nếu tên có kèm dải đo (mg/L, µg/L...) kiểu
+// "COD (1500 mg/l)", "Tổng Nito (150mg/l)", "20 - 1500 mg/L" — đặc trưng
+// cách đặt tên thuốc thử theo bộ kit Hach. Còn lại (tên hóa chất thường,
+// không có dải đo) là "PP mới".
+function _cpIsHach(ten) {
+  return /\d+(\.\d+)?\s*(mg|µg|ug|mcg)\s*\/\s*[lL]/i.test(String(ten || ''));
+}
+function _cpHcBadge(loai) {
+  return loai === 'hach'
+    ? '<span style="font-size:11px;font-weight:600;color:#B45309;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:2px 8px">🧫 HACH</span>'
+    : '<span style="font-size:11px;font-weight:600;color:#7C3AED;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:2px 8px">🧪 PP mới</span>';
+}
+
 // Sheet "Chi phí phòng thí nghiệm" dùng locale US (file có timezone
 // America/Los_Angeles) nên TSV xuất ngày dạng M/D/YYYY, KHÁC với D/M/YYYY
 // của các sheet Việt Nam khác trong dashboard. Đừng dùng chung 1 hàm parse ngày.
@@ -1543,16 +1566,17 @@ function _cpParseGrid(grid) {
     const hcD = _cpParseDate(r[7]);
     const hcTotal = _cpToNum(r[10]);
     if (hcD && hcTotal > 0) {
+      const ten = String(r[11] || '').trim();
       hc.push({ ngay: _cpFmtDate(hcD), thang: hcD.m, nam: hcD.y,
                 donGia: _cpToNum(r[8]), soLuong: _cpToNum(r[9]),
-                thanhTien: hcTotal, ten: String(r[11] || '').trim() });
+                thanhTien: hcTotal, ten: ten, loai: _cpIsHach(ten) ? 'hach' : 'ppmoi' });
     }
   });
   return { tb, hc, nsTB, nsHC };
 }
 
 async function loadChiPhiPTN() {
-  const cacheKey = 'ptn_dashboard_chiphi_cache_v5';
+  const cacheKey = 'ptn_dashboard_chiphi_cache_v6';
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) { _cpData = JSON.parse(cached); _cpLoaded = true; }
@@ -1605,6 +1629,7 @@ document.getElementById('cpNamSel').addEventListener('change', e => {
   e.target.dataset.val = e.target.value; renderChiPhiPTN();
 });
 document.getElementById('cpDanhMucSel').addEventListener('change', renderChiPhiPTN);
+document.getElementById('cpLoaiHcSel').addEventListener('change', renderChiPhiPTN);
 
 function renderChiPhiPTN() {
   if (!_cpData) return;
@@ -1621,12 +1646,15 @@ function renderChiPhiPTN() {
   const sumTBTotal = tbAll.reduce((a, r) => a + r.soTien, 0);
   const sumTBPTN = sumTBTotal - sumDC - sumHT;
   const sumHC = hcAll.reduce((a, r) => a + r.thanhTien, 0);
+  const sumHCHach  = hcAll.filter(r => r.loai === 'hach').reduce((a, r) => a + r.thanhTien, 0);
+  const sumHCPpMoi = sumHC - sumHCHach;
 
   document.getElementById('cpKpi').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">🔬 Dụng cụ PTN</div><div class="kpi-val" style="color:#6366F1">${fmtMoney(sumDC)}</div></div>
     <div class="kpi-card"><div class="kpi-label">⚗️ Thiết bị PTN</div><div class="kpi-val" style="color:#0891B2">${fmtMoney(sumTBPTN)}</div></div>
     <div class="kpi-card"><div class="kpi-label">🏗️ Thiết bị HT</div><div class="kpi-val" style="color:#D97706">${fmtMoney(sumHT)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất</div><div class="kpi-val" style="color:#059669">${fmtMoney(sumHC)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧫 Hóa chất HACH</div><div class="kpi-val" style="color:#B45309">${fmtMoney(sumHCHach)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất PP mới</div><div class="kpi-val" style="color:#7C3AED">${fmtMoney(sumHCPpMoi)}</div></div>
     <div class="kpi-card money"><div class="kpi-label">💰 Tổng cộng</div><div class="kpi-val">${fmtMoney(sumTBTotal + sumHC)}</div></div>`;
 
   // Ngân sách phê duyệt vs thực tế — tính theo NĂM đang chọn, không theo tháng
@@ -1691,26 +1719,31 @@ function renderChiPhiPTN() {
     tbWrap.innerHTML = html;
   }
 
-  // Bảng Hóa chất
+  // Bảng Hóa chất (có lọc theo loại HACH / PP mới)
+  const loaiFlt = document.getElementById('cpLoaiHcSel').value || '';
+  const hcFiltered = !loaiFlt ? hcAll : hcAll.filter(r => r.loai === loaiFlt);
+  const hcFilteredTotal = hcFiltered.reduce((a, r) => a + r.thanhTien, 0);
+
   const hcWrap = document.getElementById('cpHcWrap');
-  if (!hcAll.length) {
+  if (!hcFiltered.length) {
     hcWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
   } else {
     let html = `<div class="table-wrap"><table class="data-table"><thead><tr>
-      <th style="width:40px">#</th><th style="width:110px">Ngày</th><th>Tên thuốc thử / Hóa chất</th>
+      <th style="width:40px">#</th><th style="width:110px">Ngày</th><th>Tên thuốc thử / Hóa chất</th><th style="width:110px">Loại</th>
       <th class="num" style="width:130px">Đơn giá</th><th class="num" style="width:70px">SL</th><th class="num" style="width:150px">Thành tiền</th>
     </tr></thead><tbody>`;
-    hcAll.forEach((r, i) => {
+    hcFiltered.forEach((r, i) => {
       html += `<tr><td style="text-align:center;color:#94A3B8;font-size:11px">${i+1}</td>
         <td style="white-space:nowrap;color:#64748B;font-size:12.5px">${r.ngay}</td>
         <td style="font-size:13.5px">${r.ten}</td>
+        <td>${_cpHcBadge(r.loai)}</td>
         <td class="num" style="color:#64748B;font-size:12.5px">${fmtMoney(r.donGia)}</td>
         <td class="num" style="text-align:center;font-weight:600">${fmtNum(r.soLuong)}</td>
         <td class="num" style="font-weight:700;color:#059669">${fmtMoney(r.thanhTien)}</td></tr>`;
     });
     html += `</tbody><tfoot><tr class="cp-total-row">
-        <td colspan="5" style="text-align:right;font-weight:800;color:#1B2E7A">Tổng:</td>
-        <td class="num" style="font-weight:900;color:#059669">${fmtMoney(sumHC)}</td>
+        <td colspan="6" style="text-align:right;font-weight:800;color:#1B2E7A">Tổng:</td>
+        <td class="num" style="font-weight:900;color:#059669">${fmtMoney(hcFilteredTotal)}</td>
       </tr></tfoot></table></div>`;
     hcWrap.innerHTML = html;
   }
