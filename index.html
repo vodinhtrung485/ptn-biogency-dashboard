@@ -1011,6 +1011,28 @@ function _khLoadStore() {
 function _khSaveStore() {
   try { localStorage.setItem(KH_STORE_KEY, JSON.stringify(_khData)); } catch (e) {}
 }
+
+// Tải kế hoạch từ Google Sheets (qua Web App) để MỌI MÁY đều thấy cùng số.
+// localStorage chỉ còn dùng làm cache hiện tạm trong lúc chờ mạng.
+async function khLoadFromSheet() {
+  try {
+    const res = await ghiChuCall('khDash_get');
+    if (!res || !res.ok || !res.data) return;
+    // data: { 'Tháng 8': { 'Nhóm 1': [lan,mau,cp], ... } } → về dạng mảng theo KH_ROWS
+    Object.keys(res.data).forEach(function(ky) {
+      const byNhom = res.data[ky] || {};
+      _khData[ky] = KH_ROWS.map(function(nhom) {
+        const v = byNhom[nhom];
+        return v ? [v[0] == null ? '' : v[0], v[1] == null ? '' : v[1], v[2] == null ? '' : v[2]]
+                 : ['', '', ''];
+      });
+    });
+    _khSaveStore();
+    if (_khLabel) { khRenderTable(); khRenderKPI(); }
+  } catch (e) {
+    console.warn('Không tải được kế hoạch từ sheet:', e.message);
+  }
+}
 function _khBlank() { return KH_ROWS.map(() => ['', '', '']); }
 function _khGet(label) {
   if (!_khData[label] || !Array.isArray(_khData[label])) _khData[label] = _khBlank();
@@ -1160,21 +1182,42 @@ function khRenderKPI() {
     <div class="kpi-card money"><div class="kpi-label">KH Chi phí</div><div class="kpi-val">${fmtMoney(cp)}</div></div>`;
 }
 
-function khSave() {
-  _khSaveStore();
+async function khSave() {
   const note = document.getElementById('khSaveNote');
-  note.textContent = '✓ Đã lưu';
-  note.style.color = '#16A34A';
-  setTimeout(() => { if (note.textContent === '✓ Đã lưu') note.textContent = ''; }, 2500);
+  _khSaveStore(); // lưu cache trước cho chắc
+  note.textContent = '⏳ Đang lưu lên sheet...';
+  note.style.color = '#64748B';
+
+  const grid = _khGet(_khLabel);
+  const rows = KH_ROWS.map(function(nhom, r) {
+    return {
+      nhom: nhom,
+      lan: _khNum(grid[r][0]) || (String(grid[r][0] || '').trim() ? 0 : ''),
+      mau: _khNum(grid[r][1]) || (String(grid[r][1] || '').trim() ? 0 : ''),
+      cp:  _khNum(grid[r][2]) || (String(grid[r][2] || '').trim() ? 0 : '')
+    };
+  });
+
+  try {
+    const res = await ghiChuCall('khDash_save', { ky: _khLabel, rows: rows });
+    if (!res || !res.ok) throw new Error((res && res.msg) || 'Lỗi không xác định');
+    note.textContent = '✓ Đã lưu — mọi máy đều thấy';
+    note.style.color = '#16A34A';
+    setTimeout(function() { if (note.textContent.indexOf('Đã lưu') >= 0) note.textContent = ''; }, 3000);
+  } catch (e) {
+    note.textContent = '✗ Lưu lên sheet thất bại';
+    note.style.color = '#DC2626';
+    alert('Không lưu được lên Google Sheets:\n\n' + e.message +
+          '\n\nSố đã lưu tạm trên máy này, anh thử bấm Lưu lại sau.');
+  }
 }
 
 function khReset() {
   if (!confirm('Xóa trắng toàn bộ số của ' + _khLabel + '?')) return;
   _khData[_khLabel] = _khBlank();
-  _khSaveStore();
   khRenderTable();
   khRenderKPI();
-  document.getElementById('khSaveNote').textContent = '';
+  khSave(); // ghi luôn lên sheet để máy khác cũng thấy đã xóa
 }
 
 function renderOverview() {
@@ -1730,9 +1773,11 @@ async function loadDonGia() {
 loadAll(false);
 loadGhiChu();
 loadDonGia();
+khLoadFromSheet();
 setInterval(() => loadAll(true), 5 * 60 * 1000); // tự làm mới mỗi 5 phút
 setInterval(() => loadGhiChu(), 2 * 60 * 1000); // mục tùy chỉnh làm mới mỗi 2 phút
 setInterval(() => loadDonGia(), 5 * 60 * 1000); // đơn giá làm mới mỗi 5 phút
+setInterval(() => { if (!_khEditMode) khLoadFromSheet(); }, 3 * 60 * 1000); // kế hoạch: 3 phút
 </script>
 </body>
 </html>
