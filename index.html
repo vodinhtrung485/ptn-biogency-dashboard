@@ -306,6 +306,10 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
       <select class="period-sel" id="cpNamSel"></select>
     </div>
     <div class="kpi-grid" id="cpKpi"></div>
+    <div class="card" id="cpNsCard" style="display:none">
+      <div class="card-title" style="margin-bottom:12px">💼 Ngân sách đã phê duyệt so với thực tế sử dụng <span id="cpNsNam" style="color:#94A3B8;font-weight:600"></span></div>
+      <div id="cpNsWrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px"></div>
+    </div>
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
         <div>
@@ -474,7 +478,7 @@ const URLS = {
   thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
   donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
   dongia:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1459909474&single=true&output=tsv',
-  chiphi:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1819549076&single=true&output=tsv',
+  chiphi:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=767105370&single=true&output=csv',
 };
 const DONGIA_CACHE_KEY = 'ptn_dashboard_dongia_cache_v1';
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
@@ -1453,7 +1457,14 @@ function _cpParseDate(v) {
   const s = String(v == null ? '' : v).trim();
   const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (!m) return null;
-  const mo = +m[1], d = +m[2], y = +m[3]; // tháng trước, ngày sau
+  let a = +m[1], b = +m[2];
+  const y = +m[3];
+  // Bản CSV publish của sheet này hiển thị ngày theo định dạng Việt D/M/YYYY
+  // (VD "05/03/2026", "13/03/2026"). Một số dòng gõ tay lại ở dạng M/D
+  // (VD "7/26/2026" hay "26/07/2026" — số đầu >12 thì chắc chắn là ngày,
+  // phải đảo lại thành D/M).
+  let d = a, mo = b;
+  if (mo > 12 && a >= 1 && a <= 12) { mo = a; d = b; }
   if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
   return { d, m: mo, y };
 }
@@ -1485,9 +1496,42 @@ function _cpFmtDate(o) {
   return p(o.d) + '/' + p(o.m) + '/' + o.y;
 }
 
-// Parse toàn bộ lưới TSV thô thành { tb: [...], hc: [...] } — giống hệt getChiPhiPTN()
+// Sheet chỉ bật xuất bản CSV (không có TSV) nên phải tự parse CSV, có xử lý
+// ô nằm trong dấu ngoặc kép chứa dấu phẩy, ví dụ "Sodium hydroxide (NH4,TN,TP)".
+function _cpParseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Parse toàn bộ lưới CSV thô thành { tb, hc, nsTB, nsHC } — giống hệt getChiPhiPTN()
+// nsTB/nsHC = TỔNG NGÂN SÁCH lấy từ dòng có chữ "NGÂN SÁCH" (ô số lớn nhất
+// trong khối trái = thiết bị, khối phải = thuốc thử).
 function _cpParseGrid(grid) {
   const tb = [], hc = [];
+  let nsTB = 0, nsHC = 0;
+  grid.forEach(function(r) {
+    const joined = (r || []).join(' ').toUpperCase();
+    if (joined.indexOf('NGÂN SÁCH') > -1) {
+      for (let c = 1; c <= 5; c++)  { const n = _cpToNum(r[c]); if (n > nsTB) nsTB = n; }
+      for (let c = 7; c <= 11; c++) { const n = _cpToNum(r[c]); if (n > nsHC) nsHC = n; }
+    }
+  });
   grid.forEach(function(r) {
     const tbD = _cpParseDate(r[1]);
     const tbAmt = _cpToNum(r[2]);
@@ -1503,11 +1547,11 @@ function _cpParseGrid(grid) {
                 thanhTien: hcTotal, ten: String(r[11] || '').trim() });
     }
   });
-  return { tb, hc };
+  return { tb, hc, nsTB, nsHC };
 }
 
 async function loadChiPhiPTN() {
-  const cacheKey = 'ptn_dashboard_chiphi_cache_v2';
+  const cacheKey = 'ptn_dashboard_chiphi_cache_v4';
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) { _cpData = JSON.parse(cached); _cpLoaded = true; }
@@ -1519,7 +1563,7 @@ async function loadChiPhiPTN() {
     const res = await fetch(URLS.chiphi + '&_=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    const grid = text.replace(/\r/g, '').split('\n').map(l => l.split('\t'));
+    const grid = _cpParseCSV(text);
     _cpData = _cpParseGrid(grid);
     _cpLoaded = true;
     try { localStorage.setItem(cacheKey, JSON.stringify(_cpData)); } catch (e) {}
@@ -1583,6 +1627,36 @@ function renderChiPhiPTN() {
     <div class="kpi-card"><div class="kpi-label">🏗️ Thiết bị HT</div><div class="kpi-val" style="color:#D97706">${fmtMoney(sumHT)}</div></div>
     <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất</div><div class="kpi-val" style="color:#059669">${fmtMoney(sumHC)}</div></div>
     <div class="kpi-card money"><div class="kpi-label">💰 Tổng cộng</div><div class="kpi-val">${fmtMoney(sumTBTotal + sumHC)}</div></div>`;
+
+  // Ngân sách phê duyệt vs thực tế — tính theo NĂM đang chọn, không theo tháng
+  const nsCard = document.getElementById('cpNsCard');
+  const nsTB = _cpData.nsTB || 0, nsHC = _cpData.nsHC || 0;
+  if (nsTB > 0 || nsHC > 0) {
+    const yearTB = _cpData.tb.filter(r => !nam || r.nam === nam).reduce((a, r) => a + r.soTien, 0);
+    const yearHC = _cpData.hc.filter(r => !nam || r.nam === nam).reduce((a, r) => a + r.thanhTien, 0);
+    document.getElementById('cpNsNam').textContent = nam ? '(năm ' + nam + ')' : '(tất cả năm)';
+    const bar = (icon, label, used, budget, color) => {
+      const pct = budget > 0 ? Math.min(used / budget * 100, 100) : 0;
+      const over = budget > 0 && used > budget;
+      return `<div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;gap:10px">
+          <span style="font-weight:700;color:#1B2E7A">${icon} ${label}</span>
+          <span style="color:#64748B">${fmtMoney(used)} / ${fmtMoney(budget)}
+            <b style="color:${over ? '#DC2626' : color}">(${(budget > 0 ? used / budget * 100 : 0).toFixed(1)}%)</b></span>
+        </div>
+        <div style="height:12px;background:#EDF2F9;border-radius:999px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${over ? '#DC2626' : color};border-radius:999px"></div>
+        </div>
+        <div style="font-size:11.5px;color:#94A3B8;margin-top:5px">Còn lại: ${fmtMoney(Math.max(budget - used, 0))}</div>
+      </div>`;
+    };
+    document.getElementById('cpNsWrap').innerHTML =
+      bar('🔧', 'Thiết bị / Dụng cụ', yearTB, nsTB, '#6366F1') +
+      bar('🧪', 'Hóa chất / Thuốc thử', yearHC, nsHC, '#059669');
+    nsCard.style.display = '';
+  } else {
+    nsCard.style.display = 'none';
+  }
 
   // Bảng Thiết bị & Dụng cụ (có lọc theo danh mục giống app)
   const dmFlt = (document.getElementById('cpDanhMucSel').value || '');
