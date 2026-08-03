@@ -89,6 +89,9 @@ table.dg-view-table{width:100%;border-collapse:collapse;font-size:15px;border:1.
 .dg-view-table tbody tr:nth-child(even) td{background:#F8FAFF}
 .dg-view-table tbody tr:hover td{background:#EEF4FF}
 .dg-view-table tr.dg-total-row td{background:#FFF7E6!important;font-weight:800;color:#8A5A00;border-top:2px solid #F0C766;font-size:15.5px}
+/* Chi phí PTN — dòng Tổng cuối bảng */
+tr.cp-total-row td{background:#FFF7E6!important;border-top:2px solid #F0C766;
+  font-size:15px;padding:10px 12px}
 /* Bảng kế hoạch — trình bày cho trình chiếu, có thể mở khoá để sửa/dán từ Excel */
 .table-wrap{overflow-x:auto;border-radius:12px;box-shadow:0 2px 12px rgba(27,58,107,.08)}
 table.kh-table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;
@@ -304,14 +307,24 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
     </div>
     <div class="kpi-grid" id="cpKpi"></div>
     <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
-        <div class="card-title" style="margin-bottom:0">🔬 Thiết bị & Dụng cụ</div>
-        <span style="font-size:11.5px;color:#94A3B8;margin-left:auto">Chỉ xem — muốn thêm/sửa/xóa thì vào app</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">🔧 Trang Thiết Bị &amp; Dụng Cụ</div>
+          <div style="font-size:11.5px;color:#94A3B8">Dụng cụ PTN · Thiết bị PTN · Thiết bị hiện trường</div>
+        </div>
+        <select class="period-sel" id="cpDanhMucSel" style="margin-left:auto">
+          <option value="">Tất cả danh mục</option>
+          <option value="dc">🔬 Dụng cụ PTN</option>
+          <option value="tbptn">⚗️ Thiết bị PTN</option>
+          <option value="ht">🏗️ Hiện trường</option>
+        </select>
+        <span style="font-size:11.5px;color:#94A3B8">Chỉ xem — muốn thêm/sửa/xóa thì vào app</span>
       </div>
       <div id="cpTbWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
     <div class="card">
-      <div class="card-title">🧪 Hóa chất / Thuốc thử</div>
+      <div class="card-title" style="margin-bottom:2px">🧪 Hóa Chất / Thuốc Thử</div>
+      <div style="font-size:11.5px;color:#94A3B8;margin-bottom:8px">Chi tiết từng lần nhập</div>
       <div id="cpHcWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
   </div>
@@ -1444,9 +1457,28 @@ function _cpParseDate(v) {
   if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
   return { d, m: mo, y };
 }
+// Số trong TSV là định dạng Việt: "360.000 ₫", "1.172.445,50" → dấu . là phân
+// cách nghìn, dấu , là thập phân. parseFloat trực tiếp sẽ hiểu sai (360.000 → 360).
 function _cpToNum(v) {
-  const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, ''));
-  return isNaN(n) ? 0 : n;
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  let s = String(v == null ? '' : v).trim();
+  if (!s) return 0;
+  const neg = /^\(.*\)$/.test(s) || s.indexOf('-') === 0;
+  s = s.replace(/[^\d.,]/g, '');              // bỏ ₫, đ, khoảng trắng, dấu ngoặc
+  if (!s) return 0;
+  if (s.indexOf(',') > -1 && s.indexOf('.') > -1) {
+    // có cả 2: dấu xuất hiện sau cùng là thập phân
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(/,/g, '');
+  } else if (s.indexOf(',') > -1) {
+    // chỉ có phẩy: nếu đúng dạng nhóm 3 chữ số → phân cách nghìn, ngược lại thập phân
+    s = /^\d{1,3}(,\d{3})+$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+  } else if (s.indexOf('.') > -1) {
+    // chỉ có chấm: nhóm 3 chữ số → phân cách nghìn (360.000 = 360000)
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : (neg ? -n : n);
 }
 function _cpFmtDate(o) {
   const p = n => String(n).padStart(2, '0');
@@ -1475,7 +1507,7 @@ function _cpParseGrid(grid) {
 }
 
 async function loadChiPhiPTN() {
-  const cacheKey = 'ptn_dashboard_chiphi_cache_v1';
+  const cacheKey = 'ptn_dashboard_chiphi_cache_v2';
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) { _cpData = JSON.parse(cached); _cpLoaded = true; }
@@ -1509,13 +1541,14 @@ function cpBuildFilters() {
 
   const mSel = document.getElementById('cpPeriodSel');
   const prevM = mSel.dataset.val ? parseInt(mSel.dataset.val) : null;
-  mSel.innerHTML = '<option value="0">Tất cả</option>' +
+  mSel.innerHTML = '<option value="0">Tất cả tháng</option>' +
     Array.from(months).sort((a,b)=>a-b).map(m => `<option value="${m}">Tháng ${m}</option>`).join('');
-  mSel.value = prevM && [...months].includes(prevM) ? prevM : (Math.max(...months, 0) || 0);
+  // Mặc định: Tất cả tháng — để thấy full dữ liệu như app
+  mSel.value = (prevM && [...months].includes(prevM)) ? prevM : 0;
 
   const ySel = document.getElementById('cpNamSel');
   const prevY = ySel.dataset.val ? parseInt(ySel.dataset.val) : null;
-  ySel.innerHTML = '<option value="0">Tất cả</option>' +
+  ySel.innerHTML = '<option value="0">Tất cả năm</option>' +
     Array.from(years).sort((a,b)=>a-b).map(y => `<option value="${y}">${y}</option>`).join('');
   ySel.value = prevY && [...years].includes(prevY) ? prevY : (Math.max(...years, 0) || 0);
 }
@@ -1526,6 +1559,7 @@ document.getElementById('cpPeriodSel').addEventListener('change', e => {
 document.getElementById('cpNamSel').addEventListener('change', e => {
   e.target.dataset.val = e.target.value; renderChiPhiPTN();
 });
+document.getElementById('cpDanhMucSel').addEventListener('change', renderChiPhiPTN);
 
 function renderChiPhiPTN() {
   if (!_cpData) return;
@@ -1546,26 +1580,39 @@ function renderChiPhiPTN() {
   document.getElementById('cpKpi').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">🔬 Dụng cụ PTN</div><div class="kpi-val" style="color:#6366F1">${fmtMoney(sumDC)}</div></div>
     <div class="kpi-card"><div class="kpi-label">⚗️ Thiết bị PTN</div><div class="kpi-val" style="color:#0891B2">${fmtMoney(sumTBPTN)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">🏗️ Hiện trường</div><div class="kpi-val" style="color:#D97706">${fmtMoney(sumHT)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất</div><div class="kpi-val" style="color:#B91C1C">${fmtMoney(sumHC)}</div></div>
-    <div class="kpi-card money"><div class="kpi-label">Tổng cộng</div><div class="kpi-val">${fmtMoney(sumTBTotal + sumHC)}</div></div>`;
+    <div class="kpi-card"><div class="kpi-label">🏗️ Thiết bị HT</div><div class="kpi-val" style="color:#D97706">${fmtMoney(sumHT)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất</div><div class="kpi-val" style="color:#059669">${fmtMoney(sumHC)}</div></div>
+    <div class="kpi-card money"><div class="kpi-label">💰 Tổng cộng</div><div class="kpi-val">${fmtMoney(sumTBTotal + sumHC)}</div></div>`;
 
-  // Bảng Thiết bị & Dụng cụ
+  // Bảng Thiết bị & Dụng cụ (có lọc theo danh mục giống app)
+  const dmFlt = (document.getElementById('cpDanhMucSel').value || '');
+  const tbFiltered = !dmFlt ? tbAll : tbAll.filter(r => {
+    const dm = (r.danhMuc || '').toLowerCase();
+    if (dmFlt === 'dc')    return dm.includes('dụng cụ');
+    if (dmFlt === 'ht')    return dm.includes('hiện trường');
+    if (dmFlt === 'tbptn') return dm.includes('thiết bị') && !dm.includes('hiện trường');
+    return true;
+  });
+  const tbTotal = tbFiltered.reduce((a, r) => a + r.soTien, 0);
+
   const tbWrap = document.getElementById('cpTbWrap');
-  if (!tbAll.length) {
+  if (!tbFiltered.length) {
     tbWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
   } else {
-    let html = `<table class="data-table"><thead><tr>
-      <th style="width:40px">#</th><th style="width:100px">Ngày</th><th>Mô tả</th><th>Danh mục</th><th class="num">Số tiền</th>
+    let html = `<div class="table-wrap"><table class="data-table"><thead><tr>
+      <th style="width:40px">#</th><th style="width:110px">Ngày</th><th>Mô tả</th><th style="width:170px">Danh mục</th><th class="num" style="width:140px">Số tiền</th>
     </tr></thead><tbody>`;
-    tbAll.forEach((r, i) => {
+    tbFiltered.forEach((r, i) => {
       html += `<tr><td style="text-align:center;color:#94A3B8;font-size:11px">${i+1}</td>
-        <td style="white-space:nowrap;color:#94A3B8;font-size:12px">${r.ngay}</td>
-        <td style="font-size:13px">${r.moTa}</td>
+        <td style="white-space:nowrap;color:#64748B;font-size:12.5px">${r.ngay}</td>
+        <td style="font-size:13.5px">${r.moTa}</td>
         <td>${_cpBadge(r.danhMuc)}</td>
         <td class="num" style="font-weight:700;color:#1B2E7A">${fmtMoney(r.soTien)}</td></tr>`;
     });
-    html += `</tbody></table>`;
+    html += `</tbody><tfoot><tr class="cp-total-row">
+        <td colspan="4" style="text-align:right;font-weight:800;color:#1B2E7A">Tổng:</td>
+        <td class="num" style="font-weight:900;color:#1B2E7A">${fmtMoney(tbTotal)}</td>
+      </tr></tfoot></table></div>`;
     tbWrap.innerHTML = html;
   }
 
@@ -1574,19 +1621,22 @@ function renderChiPhiPTN() {
   if (!hcAll.length) {
     hcWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
   } else {
-    let html = `<table class="data-table"><thead><tr>
-      <th style="width:40px">#</th><th style="width:100px">Ngày</th><th>Tên thuốc thử / Hóa chất</th>
-      <th class="num">Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th>
+    let html = `<div class="table-wrap"><table class="data-table"><thead><tr>
+      <th style="width:40px">#</th><th style="width:110px">Ngày</th><th>Tên thuốc thử / Hóa chất</th>
+      <th class="num" style="width:130px">Đơn giá</th><th class="num" style="width:70px">SL</th><th class="num" style="width:150px">Thành tiền</th>
     </tr></thead><tbody>`;
     hcAll.forEach((r, i) => {
       html += `<tr><td style="text-align:center;color:#94A3B8;font-size:11px">${i+1}</td>
-        <td style="white-space:nowrap;color:#94A3B8;font-size:12px">${r.ngay}</td>
-        <td style="font-size:13px">${r.ten}</td>
-        <td class="num">${fmtMoney(r.donGia)}</td>
-        <td class="num">${fmtNum(r.soLuong)}</td>
-        <td class="num" style="font-weight:700;color:#1B2E7A">${fmtMoney(r.thanhTien)}</td></tr>`;
+        <td style="white-space:nowrap;color:#64748B;font-size:12.5px">${r.ngay}</td>
+        <td style="font-size:13.5px">${r.ten}</td>
+        <td class="num" style="color:#64748B;font-size:12.5px">${fmtMoney(r.donGia)}</td>
+        <td class="num" style="text-align:center;font-weight:600">${fmtNum(r.soLuong)}</td>
+        <td class="num" style="font-weight:700;color:#059669">${fmtMoney(r.thanhTien)}</td></tr>`;
     });
-    html += `</tbody></table>`;
+    html += `</tbody><tfoot><tr class="cp-total-row">
+        <td colspan="5" style="text-align:right;font-weight:800;color:#1B2E7A">Tổng:</td>
+        <td class="num" style="font-weight:900;color:#059669">${fmtMoney(sumHC)}</td>
+      </tr></tfoot></table></div>`;
     hcWrap.innerHTML = html;
   }
 }
