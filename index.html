@@ -217,6 +217,7 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
   <button class="tab-btn active" data-tab="tab-tongquan" onclick="switchTab('tab-tongquan')">📊 Tổng quan</button>
   <button class="tab-btn" data-tab="tab-thietbi" onclick="switchTab('tab-thietbi')">🧰 Thiết bị</button>
   <button class="tab-btn" data-tab="tab-hoachat" onclick="switchTab('tab-hoachat')">🧪 Hóa chất</button>
+  <button class="tab-btn" data-tab="tab-chiphi" onclick="switchTab('tab-chiphi')">💵 Chi phí PTN</button>
   <button class="tab-btn" data-tab="tab-mohinh" onclick="switchTab('tab-mohinh')">⚙️ Mô hình thử nghiệm</button>
   <button class="tab-btn" data-tab="tab-thunghiem" onclick="switchTab('tab-thunghiem')">🧬 Thử nghiệm PP mới</button>
   <button class="tab-btn" data-tab="tab-donhang" onclick="switchTab('tab-donhang')">📦 Đơn hàng</button>
@@ -290,6 +291,28 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
     <div class="card">
       <div class="card-title">🧪 Tồn kho hóa chất</div>
       <div id="hcTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: CHI PHÍ PHÒNG THÍ NGHIỆM (chỉ xem — sửa/thêm/xóa trong app) ══ -->
+  <div class="tab-page" id="tab-chiphi">
+    <div class="filter-bar">
+      <label>Tháng</label>
+      <select class="period-sel" id="cpPeriodSel"></select>
+      <label>Năm</label>
+      <select class="period-sel" id="cpNamSel"></select>
+    </div>
+    <div class="kpi-grid" id="cpKpi"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+        <div class="card-title" style="margin-bottom:0">🔬 Thiết bị & Dụng cụ</div>
+        <span style="font-size:11.5px;color:#94A3B8;margin-left:auto">Chỉ xem — muốn thêm/sửa/xóa thì vào app</span>
+      </div>
+      <div id="cpTbWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🧪 Hóa chất / Thuốc thử</div>
+      <div id="cpHcWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
     </div>
   </div>
 
@@ -1387,6 +1410,138 @@ function renderHoaChat() {
   document.getElementById('hcTableWrap').innerHTML = html;
 }
 
+/* ══════════ CHI PHÍ PHÒNG THÍ NGHIỆM (chỉ xem, đọc qua Web App) ══════════
+   Logic tính danh mục/tổng giống hệt INDEX.HTML của app (giữ đồng bộ số liệu):
+   Dụng cụ PTN / Thiết bị PTN / Hiện trường tính theo chữ trong cột "Danh mục",
+   phần còn lại của Thiết bị được coi là "Thiết bị PTN". */
+let _cpData = null;
+let _cpLoaded = false;
+
+function _cpBadge(dm) {
+  dm = (dm || '').toLowerCase();
+  if (dm.includes('dụng cụ'))
+    return '<span style="font-size:11px;font-weight:600;color:#6366F1;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;padding:2px 8px">🔬 Dụng cụ PTN</span>';
+  if (dm.includes('thiết bị') && !dm.includes('hiện trường'))
+    return '<span style="font-size:11px;font-weight:600;color:#0891B2;background:#ECFEFF;border:1px solid #A5F3FC;border-radius:10px;padding:2px 8px">⚗️ Thiết bị PTN</span>';
+  if (dm.includes('hiện trường'))
+    return '<span style="font-size:11px;font-weight:600;color:#D97706;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:2px 8px">🏗️ Hiện trường</span>';
+  return '<span style="font-size:11px;color:#94A3B8">' + (dm || '—') + '</span>';
+}
+
+async function loadChiPhiPTN() {
+  const cacheKey = 'ptn_dashboard_chiphi_cache_v1';
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) { _cpData = JSON.parse(cached); _cpLoaded = true; }
+  } catch (e) {}
+  if (_cpLoaded) { cpBuildFilters(); renderChiPhiPTN(); }
+
+  try {
+    const res = await ghiChuCall('chiPhiPTN_get');
+    if (!res || !res.ok) throw new Error((res && res.msg) || 'Lỗi không xác định');
+    _cpData = { tb: res.tb || [], hc: res.hc || [] };
+    _cpLoaded = true;
+    try { localStorage.setItem(cacheKey, JSON.stringify(_cpData)); } catch (e) {}
+    cpBuildFilters();
+    renderChiPhiPTN();
+  } catch (e) {
+    if (!_cpLoaded) {
+      document.getElementById('cpTbWrap').innerHTML =
+        '<div class="empty-state">⚠️ Không tải được: ' + e.message + '</div>';
+      document.getElementById('cpHcWrap').innerHTML = '';
+    }
+  }
+}
+
+function cpBuildFilters() {
+  if (!_cpData) return;
+  const months = new Set(), years = new Set();
+  _cpData.tb.concat(_cpData.hc).forEach(r => { if (r.thang) months.add(r.thang); if (r.nam) years.add(r.nam); });
+
+  const mSel = document.getElementById('cpPeriodSel');
+  const prevM = mSel.dataset.val ? parseInt(mSel.dataset.val) : null;
+  mSel.innerHTML = '<option value="0">Tất cả</option>' +
+    Array.from(months).sort((a,b)=>a-b).map(m => `<option value="${m}">Tháng ${m}</option>`).join('');
+  mSel.value = prevM && [...months].includes(prevM) ? prevM : (Math.max(...months, 0) || 0);
+
+  const ySel = document.getElementById('cpNamSel');
+  const prevY = ySel.dataset.val ? parseInt(ySel.dataset.val) : null;
+  ySel.innerHTML = '<option value="0">Tất cả</option>' +
+    Array.from(years).sort((a,b)=>a-b).map(y => `<option value="${y}">${y}</option>`).join('');
+  ySel.value = prevY && [...years].includes(prevY) ? prevY : (Math.max(...years, 0) || 0);
+}
+
+document.getElementById('cpPeriodSel').addEventListener('change', e => {
+  e.target.dataset.val = e.target.value; renderChiPhiPTN();
+});
+document.getElementById('cpNamSel').addEventListener('change', e => {
+  e.target.dataset.val = e.target.value; renderChiPhiPTN();
+});
+
+function renderChiPhiPTN() {
+  if (!_cpData) return;
+  const thang = parseInt(document.getElementById('cpPeriodSel').value) || 0;
+  const nam   = parseInt(document.getElementById('cpNamSel').value) || 0;
+
+  const tbAll = _cpData.tb.filter(r => (!thang || r.thang === thang) && (!nam || r.nam === nam));
+  const hcAll = _cpData.hc.filter(r => (!thang || r.thang === thang) && (!nam || r.nam === nam));
+
+  const sumDM = key => tbAll.filter(r => (r.danhMuc || '').toLowerCase().includes(key))
+    .reduce((a, r) => a + r.soTien, 0);
+  const sumDC = sumDM('dụng cụ');
+  const sumHT = sumDM('hiện trường');
+  const sumTBTotal = tbAll.reduce((a, r) => a + r.soTien, 0);
+  const sumTBPTN = sumTBTotal - sumDC - sumHT;
+  const sumHC = hcAll.reduce((a, r) => a + r.thanhTien, 0);
+
+  document.getElementById('cpKpi').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">🔬 Dụng cụ PTN</div><div class="kpi-val" style="color:#6366F1">${fmtMoney(sumDC)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">⚗️ Thiết bị PTN</div><div class="kpi-val" style="color:#0891B2">${fmtMoney(sumTBPTN)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">🏗️ Hiện trường</div><div class="kpi-val" style="color:#D97706">${fmtMoney(sumHT)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">🧪 Hóa chất</div><div class="kpi-val" style="color:#B91C1C">${fmtMoney(sumHC)}</div></div>
+    <div class="kpi-card money"><div class="kpi-label">Tổng cộng</div><div class="kpi-val">${fmtMoney(sumTBTotal + sumHC)}</div></div>`;
+
+  // Bảng Thiết bị & Dụng cụ
+  const tbWrap = document.getElementById('cpTbWrap');
+  if (!tbAll.length) {
+    tbWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
+  } else {
+    let html = `<table class="data-table"><thead><tr>
+      <th style="width:40px">#</th><th style="width:100px">Ngày</th><th>Mô tả</th><th>Danh mục</th><th class="num">Số tiền</th>
+    </tr></thead><tbody>`;
+    tbAll.forEach((r, i) => {
+      html += `<tr><td style="text-align:center;color:#94A3B8;font-size:11px">${i+1}</td>
+        <td style="white-space:nowrap;color:#94A3B8;font-size:12px">${r.ngay}</td>
+        <td style="font-size:13px">${r.moTa}</td>
+        <td>${_cpBadge(r.danhMuc)}</td>
+        <td class="num" style="font-weight:700;color:#1B2E7A">${fmtMoney(r.soTien)}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    tbWrap.innerHTML = html;
+  }
+
+  // Bảng Hóa chất
+  const hcWrap = document.getElementById('cpHcWrap');
+  if (!hcAll.length) {
+    hcWrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu</div>';
+  } else {
+    let html = `<table class="data-table"><thead><tr>
+      <th style="width:40px">#</th><th style="width:100px">Ngày</th><th>Tên thuốc thử / Hóa chất</th>
+      <th class="num">Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th>
+    </tr></thead><tbody>`;
+    hcAll.forEach((r, i) => {
+      html += `<tr><td style="text-align:center;color:#94A3B8;font-size:11px">${i+1}</td>
+        <td style="white-space:nowrap;color:#94A3B8;font-size:12px">${r.ngay}</td>
+        <td style="font-size:13px">${r.ten}</td>
+        <td class="num">${fmtMoney(r.donGia)}</td>
+        <td class="num">${fmtNum(r.soLuong)}</td>
+        <td class="num" style="font-weight:700;color:#1B2E7A">${fmtMoney(r.thanhTien)}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    hcWrap.innerHTML = html;
+  }
+}
+
 /* ══════════ RENDER: MÔ HÌNH THỬ NGHIỆM ══════════ */
 // Chuẩn hóa ô ngày từ TSV về dd/mm/yyyy (bỏ phần giờ nếu có)
 function _fmtDateCell(v) {
@@ -1773,10 +1928,12 @@ async function loadDonGia() {
 loadAll(false);
 loadGhiChu();
 loadDonGia();
+loadChiPhiPTN();
 khLoadFromSheet();
 setInterval(() => loadAll(true), 5 * 60 * 1000); // tự làm mới mỗi 5 phút
 setInterval(() => loadGhiChu(), 2 * 60 * 1000); // mục tùy chỉnh làm mới mỗi 2 phút
 setInterval(() => loadDonGia(), 5 * 60 * 1000); // đơn giá làm mới mỗi 5 phút
+setInterval(() => loadChiPhiPTN(), 5 * 60 * 1000); // chi phí PTN làm mới mỗi 5 phút
 setInterval(() => { if (!_khEditMode) khLoadFromSheet(); }, 3 * 60 * 1000); // kế hoạch: 3 phút
 </script>
 </body>
