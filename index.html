@@ -461,6 +461,7 @@ const URLS = {
   thunghiem: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=578695091&single=true&output=tsv',
   donhang:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1917631902&single=true&output=tsv',
   dongia:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1459909474&single=true&output=tsv',
+  chiphi:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQgUQ9LRa_tHD6Oa7u4eHP6rJ7Jo6mJy_Oy3HMuuVDQJiYDAXHb0X1bzNqTlNoxAYl2L46-fvYpjAU4/pub?gid=1819549076&single=true&output=tsv',
 };
 const DONGIA_CACHE_KEY = 'ptn_dashboard_dongia_cache_v1';
 const CACHE_KEY = 'ptn_dashboard_cache_v1';
@@ -1410,10 +1411,14 @@ function renderHoaChat() {
   document.getElementById('hcTableWrap').innerHTML = html;
 }
 
-/* ══════════ CHI PHÍ PHÒNG THÍ NGHIỆM (chỉ xem, đọc qua Web App) ══════════
-   Logic tính danh mục/tổng giống hệt INDEX.HTML của app (giữ đồng bộ số liệu):
-   Dụng cụ PTN / Thiết bị PTN / Hiện trường tính theo chữ trong cột "Danh mục",
-   phần còn lại của Thiết bị được coi là "Thiết bị PTN". */
+/* ══════════ CHI PHÍ PHÒNG THÍ NGHIỆM (chỉ xem, đọc trực tiếp TSV) ══════════
+   Đọc thẳng sheet "Chi phí phòng thí nghiệm" (publish TSV, gid=1819549076) —
+   sheet này KHÔNG có 1 header row đơn giản như các sheet khác nên đọc theo
+   VỊ TRÍ cột giống hệt getChiPhiPTN() trong MÃ.GS:
+     Trang thiết bị: cột B=Ngày(idx1) C=Số tiền(idx2) D=Mô tả(idx3) E=Danh mục(idx4)
+     Hóa chất:       cột H=Ngày(idx7) I=Đơn giá(idx8) J=SL(idx9) K=Thành tiền(idx10) L=Tên(idx11)
+   Logic tính danh mục/tổng giống hệt app: Dụng cụ PTN/Thiết bị PTN/Hiện trường
+   tính theo chữ trong cột "Danh mục", phần còn lại của Thiết bị = "Thiết bị PTN". */
 let _cpData = null;
 let _cpLoaded = false;
 
@@ -1428,6 +1433,47 @@ function _cpBadge(dm) {
   return '<span style="font-size:11px;color:#94A3B8">' + (dm || '—') + '</span>';
 }
 
+// Sheet "Chi phí phòng thí nghiệm" dùng locale US (file có timezone
+// America/Los_Angeles) nên TSV xuất ngày dạng M/D/YYYY, KHÁC với D/M/YYYY
+// của các sheet Việt Nam khác trong dashboard. Đừng dùng chung 1 hàm parse ngày.
+function _cpParseDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (!m) return null;
+  const mo = +m[1], d = +m[2], y = +m[3]; // tháng trước, ngày sau
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return { d, m: mo, y };
+}
+function _cpToNum(v) {
+  const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+function _cpFmtDate(o) {
+  const p = n => String(n).padStart(2, '0');
+  return p(o.d) + '/' + p(o.m) + '/' + o.y;
+}
+
+// Parse toàn bộ lưới TSV thô thành { tb: [...], hc: [...] } — giống hệt getChiPhiPTN()
+function _cpParseGrid(grid) {
+  const tb = [], hc = [];
+  grid.forEach(function(r) {
+    const tbD = _cpParseDate(r[1]);
+    const tbAmt = _cpToNum(r[2]);
+    if (tbD && tbAmt > 0) {
+      tb.push({ ngay: _cpFmtDate(tbD), thang: tbD.m, nam: tbD.y, soTien: tbAmt,
+                moTa: String(r[3] || '').trim(), danhMuc: String(r[4] || '').trim() });
+    }
+    const hcD = _cpParseDate(r[7]);
+    const hcTotal = _cpToNum(r[10]);
+    if (hcD && hcTotal > 0) {
+      hc.push({ ngay: _cpFmtDate(hcD), thang: hcD.m, nam: hcD.y,
+                donGia: _cpToNum(r[8]), soLuong: _cpToNum(r[9]),
+                thanhTien: hcTotal, ten: String(r[11] || '').trim() });
+    }
+  });
+  return { tb, hc };
+}
+
 async function loadChiPhiPTN() {
   const cacheKey = 'ptn_dashboard_chiphi_cache_v1';
   try {
@@ -1437,9 +1483,12 @@ async function loadChiPhiPTN() {
   if (_cpLoaded) { cpBuildFilters(); renderChiPhiPTN(); }
 
   try {
-    const res = await ghiChuCall('chiPhiPTN_get');
-    if (!res || !res.ok) throw new Error((res && res.msg) || 'Lỗi không xác định');
-    _cpData = { tb: res.tb || [], hc: res.hc || [] };
+    if (!URLS.chiphi) throw new Error('Chưa cấu hình link publish sheet "Chi phí phòng thí nghiệm".');
+    const res = await fetch(URLS.chiphi + '&_=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const grid = text.replace(/\r/g, '').split('\n').map(l => l.split('\t'));
+    _cpData = _cpParseGrid(grid);
     _cpLoaded = true;
     try { localStorage.setItem(cacheKey, JSON.stringify(_cpData)); } catch (e) {}
     cpBuildFilters();
