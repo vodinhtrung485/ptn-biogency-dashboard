@@ -1520,14 +1520,15 @@ function _cpParseCSV(text) {
 }
 
 // Parse toàn bộ lưới CSV thô thành { tb, hc, nsTB, nsHC } — giống hệt getChiPhiPTN()
-// nsTB/nsHC = TỔNG NGÂN SÁCH lấy từ dòng có chữ "NGÂN SÁCH" (ô số lớn nhất
-// trong khối trái = thiết bị, khối phải = thuốc thử).
+// nsTB/nsHC = ngân sách ĐÃ PHÊ DUYỆT, lấy từ dòng có chữ "PHÊ DUYỆT" (VD "NS phê
+// duyệt 2026"). Dòng "NS đã dùng"/"TỔNG NGÂN SÁCH" (nếu còn) KHÔNG dùng làm ngân
+// sách vì đó chỉ là tổng đã chi tính sẵn — số thực chi ta tự cộng từ các dòng chi tiết.
 function _cpParseGrid(grid) {
   const tb = [], hc = [];
   let nsTB = 0, nsHC = 0;
   grid.forEach(function(r) {
     const joined = (r || []).join(' ').toUpperCase();
-    if (joined.indexOf('NGÂN SÁCH') > -1) {
+    if (joined.indexOf('PHÊ DUYỆT') > -1) {
       for (let c = 1; c <= 5; c++)  { const n = _cpToNum(r[c]); if (n > nsTB) nsTB = n; }
       for (let c = 7; c <= 11; c++) { const n = _cpToNum(r[c]); if (n > nsHC) nsHC = n; }
     }
@@ -1551,7 +1552,7 @@ function _cpParseGrid(grid) {
 }
 
 async function loadChiPhiPTN() {
-  const cacheKey = 'ptn_dashboard_chiphi_cache_v4';
+  const cacheKey = 'ptn_dashboard_chiphi_cache_v5';
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) { _cpData = JSON.parse(cached); _cpLoaded = true; }
