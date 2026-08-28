@@ -1310,7 +1310,8 @@ function renderOverview() {
   let html = `<table class="data-table"><thead><tr>
     <th>Nhóm</th><th class="num">KH Lần</th><th class="num">TT Lần</th><th class="num">Tỷ lệ Lần</th>
     <th class="num">KH Mẫu</th><th class="num">TT Mẫu</th><th class="num">Tỷ lệ Mẫu</th>
-    <th class="num">KH Chi phí</th><th class="num">KH Chi phí mới</th><th class="num">TT Chi phí</th><th class="num">Tỷ lệ CP</th></tr></thead><tbody>`;
+    <th class="num">KH Chi phí</th><th class="num">KH Chi phí mới</th><th class="num">TT Chi phí</th>
+    <th class="num">Tỷ lệ CP</th><th class="num">Tỷ lệ CP mới</th></tr></thead><tbody>`;
   const grand = {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,khCPMoi:0,ttCP:0};
   Object.keys(byNhom).forEach(nhom => {
     const n = byNhom[nhom];
@@ -1319,14 +1320,16 @@ function renderOverview() {
     html += `<tr><td><strong>${nhom}</strong></td>
       <td class="num">${fmtNum(n.khLan)}</td><td class="num">${fmtNum(n.ttLan)}</td>${ratioCell(n.ttLan,n.khLan)}
       <td class="num">${fmtNum(n.khMau)}</td><td class="num">${fmtNum(n.ttMau)}</td>${ratioCell(n.ttMau,n.khMau)}
-      <td class="num">${fmtMoney(n.khCP)}</td><td class="num">${fmtMoney(n.khCPMoi)}</td><td class="num">${fmtMoney(n.ttCP)}</td>${ratioCell(n.ttCP,n.khCP)}</tr>`;
+      <td class="num">${fmtMoney(n.khCP)}</td><td class="num">${fmtMoney(n.khCPMoi)}</td><td class="num">${fmtMoney(n.ttCP)}</td>
+      ${ratioCell(n.ttCP,n.khCP)}${ratioCell(n.ttCP,n.khCPMoi)}</tr>`;
   });
   if (Object.keys(byNhom).length) {
     html += `<tr style="background:#F5F8FC;font-weight:800;border-top:2px solid #DDE6F0">
       <td>TỔNG</td>
       <td class="num">${fmtNum(grand.khLan)}</td><td class="num">${fmtNum(grand.ttLan)}</td>${ratioCell(grand.ttLan,grand.khLan)}
       <td class="num">${fmtNum(grand.khMau)}</td><td class="num">${fmtNum(grand.ttMau)}</td>${ratioCell(grand.ttMau,grand.khMau)}
-      <td class="num">${fmtMoney(grand.khCP)}</td><td class="num">${fmtMoney(grand.khCPMoi)}</td><td class="num">${fmtMoney(grand.ttCP)}</td>${ratioCell(grand.ttCP,grand.khCP)}</tr>`;
+      <td class="num">${fmtMoney(grand.khCP)}</td><td class="num">${fmtMoney(grand.khCPMoi)}</td><td class="num">${fmtMoney(grand.ttCP)}</td>
+      ${ratioCell(grand.ttCP,grand.khCP)}${ratioCell(grand.ttCP,grand.khCPMoi)}</tr>`;
   }
   html += '</tbody></table>';
   document.getElementById('nhomTableWrap').innerHTML = html || '<div class="empty-state">Chưa có dữ liệu</div>';
