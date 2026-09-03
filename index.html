@@ -1418,7 +1418,9 @@ function renderOverview() {
   const grand = {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,khCPMoi:0,ttCP:0};
   Object.keys(byNhom).forEach(nhom => {
     const n = byNhom[nhom];
-    grand.khLan+=n.khLan; grand.ttLan+=n.ttLan; grand.khMau+=n.khMau; grand.ttMau+=n.ttMau;
+    if (nhom !== 'Mẫu test lại') {
+      grand.khLan+=n.khLan; grand.ttLan+=n.ttLan; grand.khMau+=n.khMau; grand.ttMau+=n.ttMau;
+    }
     grand.khCP+=n.khCP; grand.khCPMoi+=n.khCPMoi; grand.ttCP+=n.ttCP;
     html += `<tr><td><strong>${nhom}</strong></td>
       <td class="num">${fmtNum(n.khLan)}</td><td class="num">${fmtNum(n.ttLan)}</td>${ratioCell(n.ttLan,n.khLan)}
