@@ -1072,7 +1072,7 @@ function getNextPeriodInfo() {
 const KH_ROWS = [
   'Nhóm 1', 'Nhóm 2', 'Nhóm 3', 'Nhóm 4', 'Nhóm 5', 'Nhóm 6',
   'Nhóm 7', 'Nhóm 8', 'Nhóm 9', 'Mô hình', 'Mẫu test lại',
-  'Nhóm 2 - Vùng 1', 'Totals'
+  'Dự án phát sinh', 'Totals'
 ];
 // Cột "Chi Phí dự kiến" (index 2) và "Chi Phí dự kiến PP mới" (index 3) LUÔN tự tính
 // = Số mẫu phân tích (index 1) × đơn giá tương ứng — không gõ tay được.
@@ -1350,16 +1350,22 @@ function khReset() {
 function renderOverview() {
   const rows = getFilteredRows();
   const tot = rows.reduce((a,r) => {
-    a.khLan+=r.khLan; a.ttLan+=r.ttLan; a.khMau+=r.khMau; a.ttMau+=r.ttMau; a.khCP+=r.khCP; a.ttCP+=r.ttCP;
+    if (r.nhom !== 'Mẫu test lại') { a.khLan+=r.khLan; a.ttLan+=r.ttLan; a.khMau+=r.khMau; a.ttMau+=r.ttMau; }
+    a.khCP+=r.khCP; a.ttCP+=r.ttCP;
     return a;
   }, {khLan:0,ttLan:0,khMau:0,ttMau:0,khCP:0,ttCP:0});
   // Mode "Năm": KH lấy theo kế hoạch cả 12 tháng (KH_LAN_2026), không chỉ cộng dồn
   // các tháng đã có dữ liệu — để so đúng "thực tế lũy kế" với "kế hoạch cả năm".
+  // "Mẫu test lại" không tính vào tổng Lần/Mẫu (khớp với bảng "Chi tiết theo nhóm ngành"),
+  // nhưng vẫn tính vào tổng Chi phí.
   if (STATE.mode === 'nam') {
     const namTot = { khLan:0, khMau:0, khCP:0 };
     for (let m = 1; m <= 12; m++) {
-      const t = tinhKeHoachThangTong(m);
-      namTot.khLan += t.khLan; namTot.khMau += t.khMau; namTot.khCP += t.khCP;
+      Object.keys(KH_LAN_2026).forEach(nhom => {
+        const t = tinhKeHoachThang(nhom, m);
+        if (nhom !== 'Mẫu test lại') { namTot.khLan += t.khLan; namTot.khMau += t.khMau; }
+        namTot.khCP += t.khCP;
+      });
     }
     tot.khLan = namTot.khLan; tot.khMau = namTot.khMau; tot.khCP = namTot.khCP;
   }
