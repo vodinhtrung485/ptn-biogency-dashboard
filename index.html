@@ -1499,12 +1499,22 @@ function renderThietBi() {
     <div class="kpi-card"><div class="kpi-label">Cần bảo trì / Hỏng</div><div class="kpi-val" style="color:#B91C1C">${canBaoTri+hong}</div></div>
     <div class="kpi-card"><div class="kpi-label">Sắp đến hạn hiệu chuẩn (≤30 ngày)</div><div class="kpi-val" style="color:#F57F17">${soon}</div></div>`;
 
+  // Hỏng / Hỏng-Ngưng lên đầu, rồi Cần bảo trì, rồi Tốt — để thiết bị cần xử lý nổi bật ngay
+  function tbPriority(tt) {
+    if (tt==='Hỏng' || tt==='Hỏng / Ngưng') return 0;
+    if (tt==='Cần bảo trì') return 1;
+    return 2;
+  }
+  const sorted = list.slice().sort((a,b) => tbPriority(a['Tình trạng']) - tbPriority(b['Tình trạng']));
+
   let html = `<table class="data-table"><thead><tr>
     <th>Tên thiết bị</th><th>Loại</th><th>Bảo hành</th><th>Hiệu chuẩn</th><th>Hạn HC gần nhất</th><th>Tình trạng</th><th>Ghi chú</th></tr></thead><tbody>`;
-  list.forEach(r => {
+  sorted.forEach(r => {
     const tt = r['Tình trạng'];
     const cls = tt==='Tốt' ? 'badge-green' : (tt==='Cần bảo trì' ? 'badge-yellow' : 'badge-red');
-    html += `<tr><td><strong>${r['Tên thiết bị']||''}</strong></td><td>${r['Loại']||''}</td>
+    const needsAttention = tbPriority(tt) <= 1;
+    const rowStyle = needsAttention ? ' style="background:#FEF2F2"' : '';
+    html += `<tr${rowStyle}><td><strong>${r['Tên thiết bị']||''}</strong></td><td>${r['Loại']||''}</td>
       <td>${r['Tình trạng BH']||''}</td><td>${r['Đã hiệu chuẩn']||''}</td>
       <td>${r['Ngày đến hạn HC']||'—'}</td>
       <td><span class="badge ${cls}">${tt||'—'}</span></td><td style="font-size:11.5px;color:#94A3B8">${r['Ghi chú']||''}</td></tr>`;
