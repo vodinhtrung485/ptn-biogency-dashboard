@@ -243,6 +243,24 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
         <button data-mode="nam">Năm</button>
       </div>
       <select class="period-sel" id="periodSel"></select>
+
+      <div id="slideLinkBox" style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a id="slideLinkBtn" href="#" target="_blank" rel="noopener"
+           style="display:none;padding:9px 16px;border-radius:9px;background:#1B2E7A;color:#fff;
+             font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap">
+          🎞️ Xem Slide báo cáo
+        </a>
+        <span id="slideLinkEmpty" style="display:none;font-size:12px;color:#94A3B8">Chưa có slide cho kỳ này</span>
+        <div id="slideLinkEditWrap" style="display:none;gap:6px;align-items:center">
+          <input type="text" id="slideLinkInput" placeholder="Dán link Google Slides (Xuất bản ra web / Chia sẻ)"
+            style="width:260px;padding:7px 10px;border:1.5px solid #C7D6EA;border-radius:8px;font-size:12px">
+          <button onclick="slideLinkSave()" style="padding:7px 12px;border-radius:8px;border:none;background:#10B981;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Lưu</button>
+        </div>
+        <button id="slideLinkEditBtn" onclick="slideLinkToggleEdit()"
+          style="padding:7px 10px;border-radius:8px;border:1.5px solid #C7D6EA;background:#fff;
+            font-size:11px;font-weight:700;cursor:pointer;color:#1B3A6B;white-space:nowrap">🔓 Gắn link slide</button>
+        <span id="slideLinkNote" style="font-size:11px;color:#94A3B8"></span>
+      </div>
     </div>
 
     <div class="kpi-grid" id="kpiGrid"></div>
@@ -316,6 +334,14 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
     <div class="filter-bar">
       <label>Tháng</label>
       <select class="period-sel" id="cpPeriodSel"></select>
+      <label>Quý</label>
+      <select class="period-sel" id="cpQuySel">
+        <option value="0">Tất cả quý</option>
+        <option value="1">Quý 1</option>
+        <option value="2">Quý 2</option>
+        <option value="3">Quý 3</option>
+        <option value="4">Quý 4</option>
+      </select>
       <label>Năm</label>
       <select class="period-sel" id="cpNamSel"></select>
     </div>
@@ -1178,6 +1204,71 @@ let _khLabel = '';
 const KH_PIN = '1346';
 let _khEditMode = false;
 
+/* ══════════ NÚT "XEM SLIDE BÁO CÁO" (Tổng quan) ══════════
+   Link Google Slides lưu trên sheet (qua Apps Script) theo đúng kỳ đang xem (Tháng/Quý/Năm),
+   để MỌI MÁY đều thấy cùng 1 link. Chỉ ai có mã PIN mới gắn/sửa được link — người khác chỉ
+   thấy nút "Xem Slide báo cáo" để bấm vào xem, không thấy/đổi được link. */
+function _slideLinkKy() {
+  if (STATE.mode === 'nam') return 'Năm ' + STATE.period;
+  if (STATE.mode === 'thang') return 'Tháng ' + STATE.period;
+  return 'Quý ' + STATE.period;
+}
+let _slideLinkEditMode = false;
+let _slideLinkCur = '';
+
+async function loadSlideLink() {
+  const ky = _slideLinkKy();
+  const btn = document.getElementById('slideLinkBtn');
+  const empty = document.getElementById('slideLinkEmpty');
+  btn.style.display = 'none'; empty.style.display = 'none';
+  try {
+    const res = await ghiChuCall('slideLink_get', { ky });
+    _slideLinkCur = (res && res.ok && res.link) ? res.link : '';
+  } catch (e) { _slideLinkCur = ''; }
+  if (_slideLinkCur) {
+    btn.href = _slideLinkCur;
+    btn.style.display = '';
+  } else if (!_slideLinkEditMode) {
+    empty.style.display = '';
+  }
+  if (_slideLinkEditMode) document.getElementById('slideLinkInput').value = _slideLinkCur;
+}
+
+function slideLinkToggleEdit() {
+  if (_slideLinkEditMode) {
+    _slideLinkEditMode = false;
+    document.getElementById('slideLinkEditWrap').style.display = 'none';
+    document.getElementById('slideLinkEditBtn').textContent = '🔓 Gắn link slide';
+    document.getElementById('slideLinkNote').textContent = '';
+    loadSlideLink();
+    return;
+  }
+  const pin = prompt('Nhập mã để gắn/sửa link Google Slides:');
+  if (pin === null) return;
+  if (pin.trim() !== KH_PIN) { alert('Mã không đúng.'); return; }
+  _slideLinkEditMode = true;
+  document.getElementById('slideLinkEditWrap').style.display = 'flex';
+  document.getElementById('slideLinkEditBtn').textContent = '🔒 Khoá lại';
+  document.getElementById('slideLinkInput').value = _slideLinkCur;
+  document.getElementById('slideLinkEmpty').style.display = 'none';
+}
+
+async function slideLinkSave() {
+  const ky = _slideLinkKy();
+  const link = document.getElementById('slideLinkInput').value.trim();
+  const note = document.getElementById('slideLinkNote');
+  note.textContent = '⏳ Đang lưu...'; note.style.color = '#94A3B8';
+  try {
+    const res = await ghiChuCall('slideLink_save', { ky, link });
+    if (!res.ok) throw new Error(res.msg || 'Lỗi không xác định');
+    _slideLinkCur = link;
+    note.textContent = '✓ Đã lưu'; note.style.color = '#10B981';
+    loadSlideLink();
+  } catch (e) {
+    note.textContent = '✗ ' + e.message; note.style.color = '#DC2626';
+  }
+}
+
 function khToggleEdit() {
   if (_khEditMode) {
     _khEditMode = false;
@@ -1348,6 +1439,7 @@ function khReset() {
 }
 
 function renderOverview() {
+  loadSlideLink();
   const rows = getFilteredRows();
   const tot = rows.reduce((a,r) => {
     if (r.nhom !== 'Mẫu test lại') { a.khLan+=r.khLan; a.ttLan+=r.ttLan; a.khMau+=r.khMau; a.ttMau+=r.ttMau; }
@@ -1746,7 +1838,18 @@ function cpBuildFilters() {
 }
 
 document.getElementById('cpPeriodSel').addEventListener('change', e => {
-  e.target.dataset.val = e.target.value; renderChiPhiPTN();
+  e.target.dataset.val = e.target.value;
+  // Tháng và Quý loại trừ nhau — chọn Tháng thì bỏ lọc Quý
+  if (e.target.value !== '0') document.getElementById('cpQuySel').value = '0';
+  renderChiPhiPTN();
+});
+document.getElementById('cpQuySel').addEventListener('change', e => {
+  // Chọn Quý thì bỏ lọc Tháng (xem cả quý, không chỉ 1 tháng)
+  if (e.target.value !== '0') {
+    const mSel = document.getElementById('cpPeriodSel');
+    mSel.value = '0'; mSel.dataset.val = '0';
+  }
+  renderChiPhiPTN();
 });
 document.getElementById('cpNamSel').addEventListener('change', e => {
   e.target.dataset.val = e.target.value; renderChiPhiPTN();
@@ -1756,10 +1859,13 @@ document.getElementById('cpDanhMucSel').addEventListener('change', renderChiPhiP
 function renderChiPhiPTN() {
   if (!_cpData) return;
   const thang = parseInt(document.getElementById('cpPeriodSel').value) || 0;
+  const quy   = parseInt(document.getElementById('cpQuySel').value) || 0;
   const nam   = parseInt(document.getElementById('cpNamSel').value) || 0;
+  const quyMonths = quy ? [1,2,3].map(x => (quy-1)*3 + x) : null;
+  const inPeriod = r => (!thang || r.thang === thang) && (!quyMonths || quyMonths.includes(r.thang)) && (!nam || r.nam === nam);
 
-  const tbAll = _cpData.tb.filter(r => (!thang || r.thang === thang) && (!nam || r.nam === nam));
-  const hcAll = _cpData.hc.filter(r => (!thang || r.thang === thang) && (!nam || r.nam === nam));
+  const tbAll = _cpData.tb.filter(inPeriod);
+  const hcAll = _cpData.hc.filter(inPeriod);
 
   const sumDM = key => tbAll.filter(r => (r.danhMuc || '').toLowerCase().includes(key))
     .reduce((a, r) => a + r.soTien, 0);
