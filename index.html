@@ -2479,17 +2479,33 @@ function renderDonHang() {
   const dhRows = rows.filter(r => !isCoHoi(r));
   const chRows = rows.filter(isCoHoi);
   const sumLan = list => list.reduce((s,r) => s + num(r['Số lần test']), 0);
-  const tongLanTest = sumLan(rows);
-  const lanDH = sumLan(dhRows), lanCH = sumLan(chRows);
+  let tongLanTest = sumLan(rows);
+  let lanDH = sumLan(dhRows), lanCH = sumLan(chRows);
+  let nDH = dhRows.length, nCH = chRows.length, nAll = rows.length;
+  // Khi đã có số liệu theo nhóm (khớp báo cáo đã chốt) thì 3 thẻ KPI lần test lấy theo đó,
+  // để khớp với bảng "Nhóm nào gửi nhiều mẫu nhất" và báo cáo.
+  if (STATE.dhNhomRows) {
+    let nr = _dhNhomPeriodRows().filter(r => r.donHang !== '(chưa rõ đơn)');
+    if (STATE.dhNhom) nr = nr.filter(r => r.nhom === STATE.dhNhom);
+    if (nr.length) {
+      const dh = nr.filter(r => r.loai !== 'CH'), ch = nr.filter(r => r.loai === 'CH');
+      lanDH = dh.reduce((s, r) => s + r.lan, 0);
+      lanCH = ch.reduce((s, r) => s + r.lan, 0);
+      tongLanTest = lanDH + lanCH;
+      nDH = new Set(dh.map(r => r.donHang)).size;
+      nCH = new Set(ch.map(r => r.donHang)).size;
+      nAll = new Set(nr.map(r => r.donHang)).size;
+    }
+  }
   const canChuY = rows.filter(r => r['Còn lại'] !== '' && num(r['Còn lại']) < 0).length;
   const multi = STATE.dhMode !== 'thang';
   const sub = t => `<div style="font-size:12px;color:#94A3B8;margin-top:4px">${t}</div>`;
 
   document.getElementById('dhKpi').style.gridTemplateColumns = 'repeat(auto-fit,minmax(210px,1fr))';
   document.getElementById('dhKpi').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế${multi ? ' đến cuối ' + periodWord : ''})</div><div class="kpi-val">${fmtNum(tongLanTest)}</div>${sub(fmtNum(rows.length) + ' đơn hàng + cơ hội' + (multi ? ' có test trong ' + periodWord : ''))}</div>
-    <div class="kpi-card"><div class="kpi-label">📦 Đơn hàng — số lần test</div><div class="kpi-val">${fmtNum(lanDH)}</div>${sub(fmtNum(dhRows.length) + ' đơn hàng')}</div>
-    <div class="kpi-card"><div class="kpi-label">💡 Cơ hội — số lần test</div><div class="kpi-val">${fmtNum(lanCH)}</div>${sub(fmtNum(chRows.length) + ' cơ hội')}</div>
+    <div class="kpi-card"><div class="kpi-label">Tổng số lần test${STATE.dhNhomRows && _dhNhomPeriodRows().length ? ' (' + periodWord + ')' : ' (lũy kế' + (multi ? ' đến cuối ' + periodWord : '') + ')'}</div><div class="kpi-val">${fmtNum(tongLanTest)}</div>${sub(fmtNum(nAll) + ' đơn hàng + cơ hội' + (multi ? ' có test trong ' + periodWord : ''))}</div>
+    <div class="kpi-card"><div class="kpi-label">📦 Đơn hàng — số lần test</div><div class="kpi-val">${fmtNum(lanDH)}</div>${sub(fmtNum(nDH) + ' đơn hàng')}</div>
+    <div class="kpi-card"><div class="kpi-label">💡 Cơ hội — số lần test</div><div class="kpi-val">${fmtNum(lanCH)}</div>${sub(fmtNum(nCH) + ' cơ hội')}</div>
     <div class="kpi-card"><div class="kpi-label">Đơn cần chú ý (Còn lại &lt; 0)</div><div class="kpi-val" style="color:#B91C1C">${canChuY}</div></div>`;
 
   const sorted = rows.slice().sort((a,b) => num(b['Số lần test']) - num(a['Số lần test']));
