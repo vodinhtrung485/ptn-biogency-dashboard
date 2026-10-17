@@ -2338,14 +2338,24 @@ function renderDonHang() {
     return;
   }
 
-  const tongDon = rows.length;
-  const tongLanTest = rows.reduce((s,r) => s + num(r['Số lần test']), 0);
+  // Mỗi dòng thuộc ĐÚNG 1 trong 2 loại: Cơ hội (mã "CH…" hoặc Giá trị ĐH = "Cơ hội") hoặc
+  // Đơn hàng (còn lại). Số lần test của Đơn hàng + Cơ hội luôn = Tổng số lần test vì cùng
+  // chia 1 tập dòng, không cộng/trừ qua lại giữa các thẻ.
+  const isCoHoi = r => /^\s*CH/i.test(String(r['Đơn hàng']||'')) || String(r['Giá trị ĐH']||'').trim().toLowerCase() === 'cơ hội';
+  const dhRows = rows.filter(r => !isCoHoi(r));
+  const chRows = rows.filter(isCoHoi);
+  const sumLan = list => list.reduce((s,r) => s + num(r['Số lần test']), 0);
+  const tongLanTest = sumLan(rows);
+  const lanDH = sumLan(dhRows), lanCH = sumLan(chRows);
   const canChuY = rows.filter(r => r['Còn lại'] !== '' && num(r['Còn lại']) < 0).length;
   const multi = STATE.dhMode !== 'thang';
+  const sub = t => `<div style="font-size:12px;color:#94A3B8;margin-top:4px">${t}</div>`;
 
+  document.getElementById('dhKpi').style.gridTemplateColumns = 'repeat(auto-fit,minmax(210px,1fr))';
   document.getElementById('dhKpi').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Tổng số đơn hàng${multi ? ' (có test trong ' + periodWord + ')' : ''}</div><div class="kpi-val">${fmtNum(tongDon)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế${multi ? ' đến cuối ' + periodWord : ''})</div><div class="kpi-val">${fmtNum(tongLanTest)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế${multi ? ' đến cuối ' + periodWord : ''})</div><div class="kpi-val">${fmtNum(tongLanTest)}</div>${sub(fmtNum(rows.length) + ' đơn hàng + cơ hội' + (multi ? ' có test trong ' + periodWord : ''))}</div>
+    <div class="kpi-card"><div class="kpi-label">📦 Đơn hàng — số lần test</div><div class="kpi-val">${fmtNum(lanDH)}</div>${sub(fmtNum(dhRows.length) + ' đơn hàng')}</div>
+    <div class="kpi-card"><div class="kpi-label">💡 Cơ hội — số lần test</div><div class="kpi-val">${fmtNum(lanCH)}</div>${sub(fmtNum(chRows.length) + ' cơ hội')}</div>
     <div class="kpi-card"><div class="kpi-label">Đơn cần chú ý (Còn lại &lt; 0)</div><div class="kpi-val" style="color:#B91C1C">${canChuY}</div></div>`;
 
   const sorted = rows.slice().sort((a,b) => num(b['Số lần test']) - num(a['Số lần test']));
