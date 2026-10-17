@@ -408,7 +408,12 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
   <!-- ══ TAB: ĐƠN HÀNG ══ -->
   <div class="tab-page" id="tab-donhang">
     <div class="filter-bar">
-      <label>Tháng</label>
+      <label>Xem theo</label>
+      <div class="seg" id="dhModeSeg">
+        <button class="active" data-mode="thang">Tháng</button>
+        <button data-mode="quy">Quý</button>
+        <button data-mode="nam">Năm</button>
+      </div>
       <select class="period-sel" id="dhPeriodSel"></select>
     </div>
     <div class="kpi-grid" id="dhKpi"></div>
@@ -2265,39 +2270,82 @@ function closeDcModal() {
 }
 
 /* ══════════ RENDER: ĐƠN HÀNG ══════════ */
+// Chế độ xem: 'thang' | 'quy' | 'nam'. STATE.dhThang giữ nghĩa "giá trị kỳ đang chọn"
+// (số tháng / số quý / năm) để không ảnh hưởng chỗ khác đang dùng.
+STATE.dhMode = 'thang';
+
 function buildDhPeriodSelector() {
-  const months = [...new Set(STATE.donhang.map(r => parseInt(r['Tháng'])))].filter(m => !isNaN(m)).sort((a,b)=>a-b);
   const sel = document.getElementById('dhPeriodSel');
   const prevVal = STATE.dhThang;
   sel.innerHTML = '';
-  months.forEach(m => {
+  let values = [], label = v => v;
+  if (STATE.dhMode === 'nam') {
+    values = [...new Set(STATE.donhang.map(r => parseInt(r['Năm'])))].filter(y => !isNaN(y)).sort((a,b)=>a-b);
+    if (!values.length) values = [new Date().getFullYear()];
+    label = y => 'Năm ' + y;
+  } else if (STATE.dhMode === 'quy') {
+    values = [...new Set(STATE.donhang.map(r => Math.ceil(parseInt(r['Tháng'])/3)))].filter(q => !isNaN(q)).sort((a,b)=>a-b);
+    label = q => 'Quý ' + q;
+  } else {
+    values = [...new Set(STATE.donhang.map(r => parseInt(r['Tháng'])))].filter(m => !isNaN(m)).sort((a,b)=>a-b);
+    label = m => 'Tháng ' + m;
+  }
+  values.forEach(v => {
     const o = document.createElement('option');
-    o.value = m; o.textContent = 'Tháng ' + m;
+    o.value = v; o.textContent = label(v);
     sel.appendChild(o);
   });
-  sel.value = prevVal && months.includes(prevVal) ? prevVal : months[months.length-1];
+  sel.value = prevVal && values.includes(prevVal) ? prevVal : values[values.length-1];
   STATE.dhThang = parseInt(sel.value) || null;
 }
 document.getElementById('dhPeriodSel').addEventListener('change', e => {
   STATE.dhThang = parseInt(e.target.value);
   renderDonHang();
 });
+document.getElementById('dhModeSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#dhModeSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  STATE.dhMode = btn.dataset.mode;
+  STATE.dhThang = null;
+  buildDhPeriodSelector();
+  renderDonHang();
+});
+
+// Quý/Năm: "Số lần test" trong sheet đơn hàng là LŨY KẾ từ T1 đến tháng xuất, và 1 đơn chỉ
+// xuất hiện ở tháng nào có test. Nên với kỳ nhiều tháng: gom theo đơn, lấy dòng của THÁNG MUỘN
+// NHẤT trong kỳ → đó chính là số lũy kế đến cuối kỳ (không cộng dồn các tháng, tránh đếm trùng).
+function _dhRowsForPeriod() {
+  const mode = STATE.dhMode;
+  if (mode === 'thang') return STATE.donhang.filter(r => parseInt(r['Tháng']) === STATE.dhThang);
+  const inPeriod = mode === 'quy'
+    ? (r => Math.ceil(parseInt(r['Tháng'])/3) === STATE.dhThang)
+    : (r => parseInt(r['Năm']) === STATE.dhThang);
+  const latest = {};
+  STATE.donhang.filter(inPeriod).forEach(r => {
+    const key = [r['Năm'], r['Đơn hàng'], r['Tên công ty']].join('|');
+    if (!latest[key] || parseInt(r['Tháng']) > parseInt(latest[key]['Tháng'])) latest[key] = r;
+  });
+  return Object.values(latest);
+}
 
 function renderDonHang() {
-  const rows = STATE.donhang.filter(r => parseInt(r['Tháng']) === STATE.dhThang);
+  const rows = _dhRowsForPeriod();
+  const periodWord = STATE.dhMode === 'nam' ? 'năm' : (STATE.dhMode === 'quy' ? 'quý' : 'tháng');
   if (!rows.length) {
     document.getElementById('dhKpi').innerHTML = '';
-    document.getElementById('dhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu đơn hàng cho tháng này</div>';
+    document.getElementById('dhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu đơn hàng cho ' + periodWord + ' này</div>';
     return;
   }
 
   const tongDon = rows.length;
   const tongLanTest = rows.reduce((s,r) => s + num(r['Số lần test']), 0);
   const canChuY = rows.filter(r => r['Còn lại'] !== '' && num(r['Còn lại']) < 0).length;
+  const multi = STATE.dhMode !== 'thang';
 
   document.getElementById('dhKpi').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Tổng số đơn hàng</div><div class="kpi-val">${fmtNum(tongDon)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế)</div><div class="kpi-val">${fmtNum(tongLanTest)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tổng số đơn hàng${multi ? ' (có test trong ' + periodWord + ')' : ''}</div><div class="kpi-val">${fmtNum(tongDon)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tổng số lần test (lũy kế${multi ? ' đến cuối ' + periodWord : ''})</div><div class="kpi-val">${fmtNum(tongLanTest)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Đơn cần chú ý (Còn lại &lt; 0)</div><div class="kpi-val" style="color:#B91C1C">${canChuY}</div></div>`;
 
   const sorted = rows.slice().sort((a,b) => num(b['Số lần test']) - num(a['Số lần test']));
