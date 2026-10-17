@@ -415,8 +415,20 @@ table.ghichu-mini-table td[colspan]:only-child{background:#FFF7E6!important;font
         <button data-mode="nam">Năm</button>
       </div>
       <select class="period-sel" id="dhPeriodSel"></select>
+      <label style="margin-left:10px">Nhóm</label>
+      <select class="period-sel" id="dhNhomSel"><option value="">Tất cả nhóm</option></select>
     </div>
     <div class="kpi-grid" id="dhKpi"></div>
+
+    <div class="card" id="dhNhomCard">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📊 Nhóm nào gửi nhiều mẫu nhất — theo Đơn hàng / Cơ hội</div>
+        <button class="dc-btn" style="margin-left:auto" onclick="loadDhNhom(true)">↻ Cập nhật số liệu nhóm</button>
+      </div>
+      <div id="dhNhomHighlight" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px"></div>
+      <div id="dhNhomWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+      <div style="font-size:11.5px;color:#94A3B8;margin-top:10px">Số lần / số mẫu tính trong kỳ đang chọn (không lũy kế). Bấm vào 1 nhóm để lọc bảng chi tiết bên dưới.</div>
+    </div>
     <div class="card">
       <div class="card-title">📦 Chi tiết đơn hàng</div>
       <div id="dhTableWrap"><div class="spinner-wrap"><div class="spinner"></div></div></div>
@@ -680,6 +692,10 @@ function applyState(processed, timestamp, stale) {
   renderThuNghiem();
   buildDhPeriodSelector();
   renderDonHang();
+  if (STATE.dhNhomRows === null && !STATE.dhNhomLoading) {
+    STATE.dhNhomLoading = true;
+    loadDhNhom(false).finally(() => { STATE.dhNhomLoading = false; });
+  }
 
   const d = new Date(timestamp);
   const staleTag = stale ? '<span class="stale-note">⏳ dữ liệu cũ, đang tải bản mới...</span>' : '';
@@ -2329,9 +2345,127 @@ function _dhRowsForPeriod() {
   return Object.values(latest);
 }
 
+/* ── Đơn hàng / Cơ hội THEO NHÓM (lấy từ Apps Script, tab Data_DonHang_Nhom) ── */
+STATE.dhNhomRows = null;   // null = chưa tải, [] = đã tải nhưng trống
+STATE.dhNhomErr = '';
+STATE.dhNhom = '';
+
+async function loadDhNhom(refresh) {
+  const wrap = document.getElementById('dhNhomWrap');
+  if (refresh && wrap) wrap.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
+  try {
+    const res = await ghiChuCall('donHangNhom_get', { refresh: !!refresh });
+    if (!res || !res.ok) throw new Error((res && res.msg) || 'Apps Script chưa hỗ trợ donHangNhom_get — cần dán lại MÃ.GS và Deploy bản mới.');
+    STATE.dhNhomRows = res.rows || [];
+    STATE.dhNhomErr = '';
+  } catch (e) {
+    STATE.dhNhomRows = null;
+    STATE.dhNhomErr = e.message;
+  }
+  const sel = document.getElementById('dhNhomSel');
+  const names = [...new Set((STATE.dhNhomRows || []).map(r => r.nhom))].sort((a,b) => a.localeCompare(b, 'vi', {numeric:true}));
+  const prev = STATE.dhNhom;
+  sel.innerHTML = '<option value="">Tất cả nhóm</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+  sel.value = names.includes(prev) ? prev : '';
+  STATE.dhNhom = sel.value;
+  renderDonHang();
+}
+document.getElementById('dhNhomSel').addEventListener('change', e => {
+  STATE.dhNhom = e.target.value;
+  renderDonHang();
+});
+function dhPickNhom(n) {
+  const sel = document.getElementById('dhNhomSel');
+  STATE.dhNhom = (STATE.dhNhom === n) ? '' : n;   // bấm lại lần nữa = bỏ lọc
+  sel.value = STATE.dhNhom;
+  renderDonHang();
+}
+
+// Dòng nhóm thuộc kỳ đang xem (cùng Tháng/Quý/Năm với bộ chọn phía trên)
+function _dhNhomPeriodRows() {
+  const all = STATE.dhNhomRows || [];
+  if (!all.length) return [];
+  const p = STATE.dhThang;
+  if (STATE.dhMode === 'nam') return all.filter(r => r.nam === p);
+  const y = Math.max(...all.map(r => r.nam));
+  if (STATE.dhMode === 'quy') return all.filter(r => r.nam === y && Math.ceil(r.thang/3) === p);
+  return all.filter(r => r.nam === y && r.thang === p);
+}
+
+function renderDhNhom() {
+  const wrap = document.getElementById('dhNhomWrap');
+  const hl = document.getElementById('dhNhomHighlight');
+  if (STATE.dhNhomRows === null) {
+    hl.innerHTML = '';
+    wrap.innerHTML = STATE.dhNhomErr
+      ? `<div class="empty-state" style="color:#B91C1C">⚠️ ${STATE.dhNhomErr}</div>`
+      : '<div class="spinner-wrap"><div class="spinner"></div></div>';
+    return;
+  }
+  const rows = _dhNhomPeriodRows();
+  if (!rows.length) { hl.innerHTML = ''; wrap.innerHTML = '<div class="empty-state">Chưa có dữ liệu nhóm cho kỳ này</div>'; return; }
+
+  // Gom theo nhóm × loại (ĐH / CH): số đơn (khác nhau), số lần, số mẫu
+  const by = {};
+  rows.forEach(r => {
+    const g = by[r.nhom] || (by[r.nhom] = { dh:{don:new Set(),lan:0,mau:0}, ch:{don:new Set(),lan:0,mau:0} });
+    const t = r.loai === 'CH' ? g.ch : g.dh;
+    t.don.add(r.donHang); t.lan += r.lan; t.mau += r.mau;
+  });
+  const list = Object.keys(by).map(n => ({ nhom:n, dh:by[n].dh, ch:by[n].ch, tong:by[n].dh.mau + by[n].ch.mau }))
+    .sort((a,b) => b.tong - a.tong);
+  const maxDH = Math.max(...list.map(x => x.dh.mau)), maxCH = Math.max(...list.map(x => x.ch.mau));
+  const topDH = list.filter(x => maxDH > 0 && x.dh.mau === maxDH).map(x => x.nhom);
+  const topCH = list.filter(x => maxCH > 0 && x.ch.mau === maxCH).map(x => x.nhom);
+
+  const card = (icon, title, names, val, color, bg) => `
+    <div style="background:${bg};border:1.5px solid ${color}33;border-radius:12px;padding:14px 16px">
+      <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.4px">${icon} ${title}</div>
+      <div style="font-size:20px;font-weight:900;color:${color};margin-top:4px">${names.length ? names.join(', ') : '—'}</div>
+      <div style="font-size:12.5px;color:#64748B;margin-top:2px">${names.length ? fmtNum(val) + ' mẫu' : 'chưa có'}</div>
+    </div>`;
+  hl.innerHTML =
+    card('🏆','Nhóm gửi nhiều mẫu nhất cho Đơn hàng', topDH, maxDH, '#1B2E7A', '#EEF2FF') +
+    card('🏆','Nhóm gửi nhiều mẫu nhất cho Cơ hội', topCH, maxCH, '#B45309', '#FFFBEB');
+
+  const tot = { dh:{don:0,lan:0,mau:0}, ch:{don:0,lan:0,mau:0} };
+  let html = `<div class="table-wrap"><table class="data-table"><thead>
+    <tr><th rowspan="2">Nhóm</th><th colspan="3" style="text-align:center;background:#EEF2FF">📦 Đơn hàng</th><th colspan="3" style="text-align:center;background:#FFFBEB">💡 Cơ hội</th><th rowspan="2" class="num">Tổng mẫu</th></tr>
+    <tr><th class="num">Số đơn</th><th class="num">Số lần</th><th class="num">Số mẫu</th><th class="num">Số cơ hội</th><th class="num">Số lần</th><th class="num">Số mẫu</th></tr>
+    </thead><tbody>`;
+  list.forEach(x => {
+    ['dh','ch'].forEach(k => { tot[k].don += x[k].don.size; tot[k].lan += x[k].lan; tot[k].mau += x[k].mau; });
+    const hDH = topDH.includes(x.nhom) ? 'font-weight:900;color:#1B2E7A;background:#EEF2FF' : '';
+    const hCH = topCH.includes(x.nhom) ? 'font-weight:900;color:#B45309;background:#FFFBEB' : '';
+    const active = STATE.dhNhom === x.nhom ? 'background:#F0F9FF;' : '';
+    html += `<tr style="cursor:pointer;${active}" onclick="dhPickNhom('${x.nhom.replace(/'/g,"\\'")}')">
+      <td><strong>${x.nhom}</strong>${STATE.dhNhom === x.nhom ? ' 🔎' : ''}</td>
+      <td class="num">${fmtNum(x.dh.don.size)}</td><td class="num">${fmtNum(x.dh.lan)}</td><td class="num" style="${hDH}">${fmtNum(x.dh.mau)}${hDH ? ' 🏆' : ''}</td>
+      <td class="num">${fmtNum(x.ch.don.size)}</td><td class="num">${fmtNum(x.ch.lan)}</td><td class="num" style="${hCH}">${fmtNum(x.ch.mau)}${hCH ? ' 🏆' : ''}</td>
+      <td class="num"><strong>${fmtNum(x.tong)}</strong></td></tr>`;
+  });
+  html += `<tr style="background:#F1F5F9;font-weight:800"><td>Tổng</td>
+    <td class="num">${fmtNum(tot.dh.don)}</td><td class="num">${fmtNum(tot.dh.lan)}</td><td class="num">${fmtNum(tot.dh.mau)}</td>
+    <td class="num">${fmtNum(tot.ch.don)}</td><td class="num">${fmtNum(tot.ch.lan)}</td><td class="num">${fmtNum(tot.ch.mau)}</td>
+    <td class="num">${fmtNum(tot.dh.mau + tot.ch.mau)}</td></tr></tbody></table></div>`;
+  wrap.innerHTML = html;
+}
+
 function renderDonHang() {
-  const rows = _dhRowsForPeriod();
+  renderDhNhom();
+  let rows = _dhRowsForPeriod();
   const periodWord = STATE.dhMode === 'nam' ? 'năm' : (STATE.dhMode === 'quy' ? 'quý' : 'tháng');
+
+  // Lọc theo nhóm: chỉ giữ đơn/cơ hội có gửi mẫu tới nhóm đó trong kỳ; kèm số lần/mẫu của nhóm
+  let nhomInfo = null;
+  if (STATE.dhNhom && STATE.dhNhomRows) {
+    nhomInfo = {};
+    _dhNhomPeriodRows().filter(r => r.nhom === STATE.dhNhom).forEach(r => {
+      const o = nhomInfo[r.donHang] || (nhomInfo[r.donHang] = { lan: 0, mau: 0 });
+      o.lan += r.lan; o.mau += r.mau;
+    });
+    rows = rows.filter(r => nhomInfo[String(r['Đơn hàng'] || '').trim()]);
+  }
   if (!rows.length) {
     document.getElementById('dhKpi').innerHTML = '';
     document.getElementById('dhTableWrap').innerHTML = '<div class="empty-state">Chưa có dữ liệu đơn hàng cho ' + periodWord + ' này</div>';
@@ -2359,8 +2493,13 @@ function renderDonHang() {
     <div class="kpi-card"><div class="kpi-label">Đơn cần chú ý (Còn lại &lt; 0)</div><div class="kpi-val" style="color:#B91C1C">${canChuY}</div></div>`;
 
   const sorted = rows.slice().sort((a,b) => num(b['Số lần test']) - num(a['Số lần test']));
-  let html = `<table class="data-table"><thead><tr>
-    <th>Đơn hàng</th><th>Tên công ty</th><th class="num">Số lần test</th><th>Các tháng test</th>
+  const nh = !!nhomInfo;
+  let html = '';
+  if (nh) html += `<div style="background:#F0F9FF;border:1px solid #BAE6FD;color:#075985;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:10px">
+    🔎 Đang lọc theo <strong>${STATE.dhNhom}</strong>: chỉ hiện đơn hàng/cơ hội có gửi mẫu tới nhóm này trong ${periodWord}. Thẻ KPI ở trên cũng chỉ tính các đơn này.
+    <a href="#" style="margin-left:8px;color:#0369A1;font-weight:700" onclick="dhPickNhom('${STATE.dhNhom.replace(/'/g,"\\'")}');return false">Bỏ lọc</a></div>`;
+  html += `<table class="data-table"><thead><tr>
+    <th>Đơn hàng</th><th>Tên công ty</th><th class="num">Số lần test</th>${nh ? '<th class="num">Lần (nhóm)</th><th class="num">Mẫu (nhóm)</th>' : ''}<th>Các tháng test</th>
     <th>Giá trị ĐH</th><th class="num">Target</th><th class="num">Còn lại</th></tr></thead><tbody>`;
   sorted.forEach(r => {
     const conLaiRaw = r['Còn lại'];
@@ -2371,7 +2510,7 @@ function renderDonHang() {
       conLaiCell = `<td class="num"><span class="badge ${cls}">${cl}</span></td>`;
     }
     html += `<tr><td><strong>${r['Đơn hàng']||''}</strong></td><td>${r['Tên công ty']||''}</td>
-      <td class="num">${fmtNum(num(r['Số lần test']))}</td><td style="font-size:11.5px;color:#94A3B8">${r['Các tháng test']||''}</td>
+      <td class="num">${fmtNum(num(r['Số lần test']))}</td>${nh ? (() => { const o = nhomInfo[String(r['Đơn hàng']||'').trim()] || {lan:0,mau:0}; return `<td class="num"><strong>${fmtNum(o.lan)}</strong></td><td class="num"><strong>${fmtNum(o.mau)}</strong></td>`; })() : ''}<td style="font-size:11.5px;color:#94A3B8">${r['Các tháng test']||''}</td>
       <td>${r['Giá trị ĐH']||'—'}</td><td class="num">${r['Target']!==''?fmtNum(num(r['Target'])):'—'}</td>
       ${conLaiCell}</tr>`;
   });
